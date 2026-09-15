@@ -135,6 +135,13 @@ export const AdminManager: React.FC<AdminManagerProps> = ({
     }
   }, []);
 
+  // Guard: Si el rol activo no tiene consola_superadmin y está en esa pestaña, redirigir a 'usuarios'
+  useEffect(() => {
+    if (activeTab === 'superadmin' && !can('consola_superadmin')) {
+      setActiveTab('usuarios');
+    }
+  }, [activeTab, can]);
+
   const handleUnlock = (e: React.FormEvent) => {
     e.preventDefault();
     if (pinInput === ADMIN_PIN) {
@@ -374,7 +381,7 @@ export const AdminManager: React.FC<AdminManagerProps> = ({
               👥 Personal & Roles (RBAC)
             </button>
 
-            {(can('consola_superadmin') || currentRole === 'superadmin') && (
+            {can('consola_superadmin') && (
               <button
                 onClick={() => {
                   setActiveTab('superadmin');
@@ -655,7 +662,7 @@ export const AdminManager: React.FC<AdminManagerProps> = ({
           )}
 
           {/* TAB: CONSOLA SUPERADMIN (DIAGNÓSTICO TÉCNICO & SUPABASE) */}
-          {activeTab === 'superadmin' && (
+          {activeTab === 'superadmin' && can('consola_superadmin') && (
             <div className="glass-panel p-6 rounded-2xl border border-slate-800 space-y-6">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-4">
                 <div>

@@ -18,6 +18,7 @@ import {
   ReclamoCobranza
 } from '../types/crm';
 import { UserRole } from '../types/auth';
+import { getActiveRoleSync } from '../context/AuthContext';
 
 // Mock Seed Data
 const MOCK_CLIENTES: Cliente[] = [
@@ -475,7 +476,7 @@ export const dataService = {
   },
 
   // INVENTARIO
-  async getInventario(rol?: UserRole): Promise<Inventario[]> {
+  async getInventario(rol: UserRole = getActiveRoleSync()): Promise<Inventario[]> {
     let list: Inventario[] = [];
 
     if (isSupabaseConfigured && supabase) {
@@ -525,20 +526,29 @@ export const dataService = {
     return newVehiculo;
   },
 
-  async updateVehiculo(vehiculo: Inventario): Promise<Inventario> {
+  async updateVehiculo(vehiculo: Inventario, rol: UserRole = getActiveRoleSync()): Promise<Inventario> {
+    const current = getLocal<Inventario[]>(STORAGE_KEYS.INVENTARIO, MOCK_INVENTARIO);
+    const existing = current.find(item => item.id === vehiculo.id);
+
+    // Integridad RBAC: Un vendedor jamás puede pisar el costo de compra real
+    const safeVehiculo: Inventario = {
+      ...vehiculo,
+      costo_compra: (rol === 'vendedor' && existing) ? existing.costo_compra : vehiculo.costo_compra,
+    };
+
     if (isSupabaseConfigured && supabase) {
       const { data, error } = await supabase
         .from('inventario')
-        .update(vehiculo)
-        .eq('id', vehiculo.id)
+        .update(safeVehiculo)
+        .eq('id', safeVehiculo.id)
         .select()
         .single();
       if (!error && data) return data as Inventario;
     }
-    const current = getLocal<Inventario[]>(STORAGE_KEYS.INVENTARIO, MOCK_INVENTARIO);
-    const updated = current.map(item => item.id === vehiculo.id ? { ...item, ...vehiculo } : item);
+
+    const updated = current.map(item => item.id === safeVehiculo.id ? safeVehiculo : item);
     setLocal(STORAGE_KEYS.INVENTARIO, updated);
-    return vehiculo;
+    return safeVehiculo;
   },
 
   async deleteVehiculo(id: string): Promise<boolean> {
@@ -566,7 +576,9 @@ export const dataService = {
   },
 
   // PRESUPUESTOS
-  async getPresupuestos(): Promise<Presupuesto[]> {
+  async getPresupuestos(rol: UserRole = getActiveRoleSync()): Promise<Presupuesto[]> {
+    let presupuestosList: Presupuesto[] = [];
+
     if (isSupabaseConfigured && supabase) {
       const { data, error } = await supabase
         .from('presupuestos')
@@ -579,24 +591,34 @@ export const dataService = {
         .order('created_at', { ascending: false });
 
       if (!error && data) {
-        return data.map((p: any) => ({
+        presupuestosList = data.map((p: any) => ({
           ...p,
           permuta: Array.isArray(p.permuta) && p.permuta.length > 0 ? p.permuta[0] : p.permuta || undefined
         })) as Presupuesto[];
       }
+    } else {
+      const rawList = getLocal<Presupuesto[]>(STORAGE_KEYS.PRESUPUESTOS, MOCK_PRESUPUESTOS);
+      const clientesList = getLocal<Cliente[]>(STORAGE_KEYS.CLIENTES, MOCK_CLIENTES);
+      const inventarioList = getLocal<Inventario[]>(STORAGE_KEYS.INVENTARIO, MOCK_INVENTARIO);
+      const permutasList = getLocal<Permuta[]>(STORAGE_KEYS.PERMUTAS, MOCK_PERMUTAS);
+
+      presupuestosList = rawList.map(p => ({
+        ...p,
+        cliente: clientesList.find(c => c.id === p.cliente_id),
+        vehiculo: inventarioList.find(v => v.id === p.vehiculo_id),
+        permuta: permutasList.find(pm => pm.presupuesto_id === p.id),
+      }));
     }
 
-    const presupuestosList = getLocal<Presupuesto[]>(STORAGE_KEYS.PRESUPUESTOS, MOCK_PRESUPUESTOS);
-    const clientesList = getLocal<Cliente[]>(STORAGE_KEYS.CLIENTES, MOCK_CLIENTES);
-    const inventarioList = getLocal<Inventario[]>(STORAGE_KEYS.INVENTARIO, MOCK_INVENTARIO);
-    const permutasList = getLocal<Permuta[]>(STORAGE_KEYS.PERMUTAS, MOCK_PERMUTAS);
+    // RBAC: Si el rol es vendedor, ofuscar el costo_compra en el vehículo incrustado
+    if (rol === 'vendedor') {
+      return presupuestosList.map(p => ({
+        ...p,
+        vehiculo: p.vehiculo ? { ...p.vehiculo, costo_compra: 0 } : undefined,
+      }));
+    }
 
-    return presupuestosList.map(p => ({
-      ...p,
-      cliente: clientesList.find(c => c.id === p.cliente_id),
-      vehiculo: inventarioList.find(v => v.id === p.vehiculo_id),
-      permuta: permutasList.find(pm => pm.presupuesto_id === p.id),
-    }));
+    return presupuestosList;
   },
 
   async createPresupuesto(
@@ -972,7 +994,9 @@ export const dataService = {
   // --------------------------------------------------------------------------
   // PRÉSTAMOS, PAGARÉS Y COBRANZAS
   // --------------------------------------------------------------------------
-  async getPrestamosPagares(): Promise<PrestamoPagare[]> {
+  async getPrestamosPagares(rol: UserRole = getActiveRoleSync()): Promise<PrestamoPagare[]> {
+    if (rol === 'vendedor') return []; // Bloqueado estrictamente para vendedores
+
     if (isSupabaseConfigured && supabase) {
       const { data, error } = await supabase.from('prestamos_pagares').select('*, cliente:clientes(*), vehiculo:inventario(*)').order('created_at', { ascending: false });
       if (!error && data) return data as PrestamoPagare[];
@@ -1002,7 +1026,6 @@ export const dataService = {
         const cuotasList = [];
         const montoCuota = prestamo.monto_cuota_promedio;
         const fechaInicio = new Date(prestamo.fecha_otorgamiento || new Date());
-
         for (let i = 1; i <= prestamo.cantidad_cuotas; i++) {
           const fechaVenc = new Date(fechaInicio);
           fechaVenc.setMonth(fechaVenc.getMonth() + i);
@@ -1052,7 +1075,9 @@ export const dataService = {
     return newPrestamo;
   },
 
-  async getCuotasPagares(): Promise<CuotaPagare[]> {
+  async getCuotasPagares(rol: UserRole = getActiveRoleSync()): Promise<CuotaPagare[]> {
+    if (rol === 'vendedor') return []; // Bloqueado estrictamente para vendedores
+
     if (isSupabaseConfigured && supabase) {
       const { data, error } = await supabase.from('cuotas_pagares').select('*, prestamo:prestamos_pagares(*, cliente:clientes(*))').order('fecha_vencimiento', { ascending: true });
       if (!error && data) return data as CuotaPagare[];

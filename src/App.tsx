@@ -27,7 +27,7 @@ import {
 import { RefreshCw, AlertTriangle } from 'lucide-react';
 
 export const App: React.FC = () => {
-  const { currentRole } = useAuth();
+  const { currentRole, can } = useAuth();
   const [activeTab, setActiveTab] = useState<TabType>('pipeline');
   
   // Data States
@@ -76,7 +76,7 @@ export const App: React.FC = () => {
       const [cliData, invData, presData, intData, metData] = await Promise.all([
         dataService.getClientes(),
         dataService.getInventario(currentRole),
-        dataService.getPresupuestos(),
+        dataService.getPresupuestos(currentRole),
         dataService.getInteracciones(),
         dataService.getDashboardMetrics(),
       ]);
@@ -98,12 +98,15 @@ export const App: React.FC = () => {
     loadAllData();
   }, [currentRole]);
 
-  // Guard de pestañas restringidas según rol activo
+  // Guard reactivo de pestañas restringidas según matriz RBAC
   useEffect(() => {
-    if (currentRole === 'vendedor' && (activeTab === 'pagares' || activeTab === 'admin')) {
+    if (activeTab === 'pagares' && !can('gestionar_pagares')) {
       setActiveTab('pipeline');
     }
-  }, [currentRole, activeTab]);
+    if (activeTab === 'admin' && !can('gestionar_usuarios') && !can('consola_superadmin')) {
+      setActiveTab('pipeline');
+    }
+  }, [currentRole, activeTab, can]);
 
   const handleDeleteVehiculo = async (id: string) => {
     if (!window.confirm('¿Confirmas que deseas eliminar esta unidad del stock?')) return;
@@ -281,7 +284,7 @@ export const App: React.FC = () => {
               <SourcingRadar />
             )}
 
-            {activeTab === 'pagares' && (
+            {activeTab === 'pagares' && can('gestionar_pagares') && (
               <PagaresManager />
             )}
 
@@ -289,7 +292,7 @@ export const App: React.FC = () => {
               <DashboardView metrics={metrics} />
             )}
 
-            {activeTab === 'admin' && (
+            {activeTab === 'admin' && (can('gestionar_usuarios') || can('consola_superadmin')) && (
               <AdminManager
                 clientes={clientes}
                 inventario={inventario}

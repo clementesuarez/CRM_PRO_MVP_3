@@ -1118,7 +1118,9 @@ export const InventoryManager: React.FC<InventoryManagerProps> = ({
 
                   {can('ver_costos') && (
                     <div>
-                      <label className="block font-semibold text-slate-300 mb-1">Costo de Toma / Compra</label>
+                      <label className="block font-semibold text-slate-300 mb-1">
+                        Costo de Toma / Compra {!can('editar_costos') && <span className="text-rose-400 text-[10px]">(Solo Lectura)</span>}
+                      </label>
                       <div className="relative">
                         <span className="absolute left-3 top-1/2 -translate-y-1/2 font-bold text-slate-400 text-xs font-mono">
                           {moneda === 'USD' ? 'USD' : '$ ARS'}
@@ -1127,8 +1129,11 @@ export const InventoryManager: React.FC<InventoryManagerProps> = ({
                           type="number"
                           min={0}
                           value={costoCompra}
+                          disabled={!can('editar_costos')}
                           onChange={(e) => setCostoCompra(Number(e.target.value))}
-                          className="w-full bg-slate-950 border border-slate-700 rounded-xl pl-16 pr-3 py-2.5 text-slate-100 focus:outline-none focus:border-cyan-500 font-mono"
+                          className={`w-full bg-slate-950 border border-slate-700 rounded-xl pl-16 pr-3 py-2.5 text-slate-100 focus:outline-none focus:border-cyan-500 font-mono ${
+                            !can('editar_costos') ? 'opacity-60 cursor-not-allowed bg-slate-900' : ''
+                          }`}
                         />
                       </div>
                     </div>

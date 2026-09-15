@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { UserRole, PerfilUsuario, Permission, ROLE_PERMISSIONS } from '../types/auth';
 
 interface AuthContextType {
@@ -51,44 +51,64 @@ const DEFAULT_USERS: PerfilUsuario[] = [
   },
 ];
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+export const STORAGE_ROLE_KEY = 'autocrm_current_role_mvp3';
+export const STORAGE_USERS_KEY = 'autocrm_usuarios_list_mvp3';
 
-const STORAGE_ROLE_KEY = 'autocrm_current_role_mvp3';
-const STORAGE_USERS_KEY = 'autocrm_usuarios_list_mvp3';
+/**
+ * Función utilitaria global para obtener de forma síncrona el rol activo
+ * Permite a dataService.ts u otros servicios verificar el rol sin depender del ciclo de React.
+ */
+export const getActiveRoleSync = (): UserRole => {
+  try {
+    const saved = localStorage.getItem(STORAGE_ROLE_KEY) as UserRole;
+    if (saved === 'vendedor' || saved === 'admin' || saved === 'superadmin') {
+      return saved;
+    }
+  } catch (e) {
+    console.error('Error al leer STORAGE_ROLE_KEY:', e);
+  }
+  return 'admin';
+};
+
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [usuarios, setUsuarios] = useState<PerfilUsuario[]>(() => {
-    const saved = localStorage.getItem(STORAGE_USERS_KEY);
-    if (saved) {
-      try {
+    try {
+      const saved = localStorage.getItem(STORAGE_USERS_KEY);
+      if (saved) {
         return JSON.parse(saved);
-      } catch (e) {
-        console.error('Error parsing saved users', e);
       }
+    } catch (e) {
+      console.error('Error al cargar usuarios iniciales:', e);
     }
     return DEFAULT_USERS;
   });
 
-  const [currentRole, setCurrentRole] = useState<UserRole>(() => {
-    const saved = localStorage.getItem(STORAGE_ROLE_KEY) as UserRole;
-    if (saved && (saved === 'vendedor' || saved === 'admin' || saved === 'superadmin')) {
-      return saved;
-    }
-    return 'admin'; // Dueño de agencia por defecto
-  });
+  const [currentRole, setCurrentRole] = useState<UserRole>(() => getActiveRoleSync());
 
   // Guardar usuarios en storage al cambiar
   useEffect(() => {
-    localStorage.setItem(STORAGE_USERS_KEY, JSON.stringify(usuarios));
+    try {
+      localStorage.setItem(STORAGE_USERS_KEY, JSON.stringify(usuarios));
+    } catch (e) {
+      console.error('Error al guardar usuarios en storage:', e);
+    }
   }, [usuarios]);
 
-  // Guardar rol seleccionado
-  const handleSetRole = (role: UserRole) => {
+  // Modificar rol activo de forma reactiva y persistente
+  const handleSetRole = useCallback((role: UserRole) => {
     setCurrentRole(role);
-    localStorage.setItem(STORAGE_ROLE_KEY, role);
-  };
+    try {
+      localStorage.setItem(STORAGE_ROLE_KEY, role);
+      // Disparar evento para que componentes o servicios externos se sincronicen
+      window.dispatchEvent(new Event('autocrm_role_changed'));
+    } catch (e) {
+      console.error('Error al guardar rol en storage:', e);
+    }
+  }, []);
 
-  // Buscar usuario activo que coincida con el rol o usar fallback
+  // Calcular el usuario activo según el rol actual
   const currentUser: PerfilUsuario = usuarios.find((u) => u.rol === currentRole && u.activo) || {
     id: `usr-${currentRole}-default`,
     nombre: currentRole === 'admin' ? 'Dueño / Admin' : currentRole === 'superadmin' ? 'Desarrollador / SuperAdmin' : 'Vendedor Comercial',
@@ -98,11 +118,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     created_at: new Date().toISOString(),
   };
 
-  // Verificador de permisos RBAC
-  const can = (permission: Permission): boolean => {
-    const permissions = ROLE_PERMISSIONS[currentRole] || [];
-    return permissions.includes(permission);
-  };
+  // Verificador estricto de permisos según la Matriz RBAC
+  const can = useCallback((permission: Permission): boolean => {
+    const allowed = ROLE_PERMISSIONS[currentRole] || [];
+    return allowed.includes(permission);
+  }, [currentRole]);
 
   const addUsuario = (data: Omit<PerfilUsuario, 'id' | 'created_at'>) => {
     const nuevo: PerfilUsuario = {
