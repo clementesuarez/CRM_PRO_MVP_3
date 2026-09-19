@@ -85,6 +85,7 @@ export const InventoryManager: React.FC<InventoryManagerProps> = ({
   // Form State
   const [catalogoId, setCatalogoId] = useState<number | undefined>(undefined);
   const [version, setVersion] = useState<string>('');
+  const [isManualMode, setIsManualMode] = useState(false);
   const [patente, setPatente] = useState('');
   const [marca, setMarca] = useState('');
   const [modelo, setModelo] = useState('');
@@ -115,7 +116,7 @@ export const InventoryManager: React.FC<InventoryManagerProps> = ({
 
   const handleSelectCatalogo = (item: CatalogoVehiculoItem) => {
     setMarca(item.marca);
-    setModelo(item.version_completa);
+    setModelo(item.modelo);
     setVersion(item.version_completa);
     setCatalogoId(item.id);
     if (item.tipo) {
@@ -130,6 +131,7 @@ export const InventoryManager: React.FC<InventoryManagerProps> = ({
     setEditingVehiculo(null);
     setCatalogoId(undefined);
     setVersion('');
+    setIsManualMode(false);
     setPatente('');
     setMarca('');
     setModelo('');
@@ -170,9 +172,12 @@ export const InventoryManager: React.FC<InventoryManagerProps> = ({
 
   const handleOpenEdit = (v: Inventario) => {
     setEditingVehiculo(v);
+    setIsManualMode(true);
     setPatente(v.patente || '');
     setMarca(v.marca || '');
     setModelo(v.modelo || '');
+    setVersion(v.version || '');
+    setCatalogoId(v.catalogo_id);
     setTipoVehiculo(v.tipo_vehiculo || 'Pick-up / Camioneta');
     setNumeroChasis(v.numero_chasis || '');
     setNumeroMotor(v.numero_motor || '');
@@ -220,7 +225,7 @@ export const InventoryManager: React.FC<InventoryManagerProps> = ({
 
   const filtered = inventario.filter(v => {
     const fullSearchText = `
-      ${v.marca} ${v.modelo} ${v.patente || ''} ${v.tipo_vehiculo || ''} 
+      ${v.marca} ${v.modelo} ${v.version || ''} ${v.patente || ''} ${v.tipo_vehiculo || ''} 
       ${v.numero_chasis || ''} ${v.numero_motor || ''} ${v.dueno_consigna_nombre || ''} ${v.observaciones || ''}
       ${v.origen_transaccion || ''} ${v.anio}
     `;
@@ -257,6 +262,8 @@ export const InventoryManager: React.FC<InventoryManagerProps> = ({
       patente: patente.toUpperCase().trim(),
       marca: marca.trim(),
       modelo: modelo.trim(),
+      version: version.trim() || undefined,
+      catalogo_id: catalogoId,
       tipo_vehiculo: tipoVehiculo,
       numero_chasis: numeroChasis.toUpperCase().trim(),
       numero_motor: numeroMotor.toUpperCase().trim(),
@@ -544,6 +551,9 @@ export const InventoryManager: React.FC<InventoryManagerProps> = ({
                     <td className="p-3.5">
                       <div className="font-extrabold text-slate-100 text-sm flex items-center gap-1.5">
                         {v.marca} {v.modelo}
+                        {v.version && !v.modelo.toLowerCase().includes(v.version.toLowerCase()) && (
+                          <span className="text-xs font-normal text-slate-300">({v.version})</span>
+                        )}
                         {v.es_cero_km && (
                           <span className="text-[10px] bg-cyan-500/20 text-cyan-300 font-mono px-1.5 py-0.2 rounded border border-cyan-500/40">
                             0KM
@@ -951,21 +961,6 @@ export const InventoryManager: React.FC<InventoryManagerProps> = ({
                   1. Identificación del Vehículo
                 </div>
 
-                {/* AUTOCOMPLETE PREDICTIVO DE CATÁLOGO ARGENTINA ($0 COST) */}
-                <div className="bg-amber-950/20 p-3 rounded-xl border border-amber-500/30 space-y-1.5">
-                  <div className="flex items-center justify-between">
-                    <span className="text-amber-400 font-bold text-[11px] flex items-center gap-1.5">
-                      <Sparkles className="w-3.5 h-3.5" />
-                      Catálogo Predictivo Argentina ($0 Costo API)
-                    </span>
-                    <span className="text-[10px] text-slate-400">Autocompleta Marca, Modelo, Versión y Tipo</span>
-                  </div>
-                  <VehicleAutocomplete
-                    onSelect={handleSelectCatalogo}
-                    placeholder="Escribe para autocompletar (ej: Amarok V6, Hilux SRX, Cronos, 208 GT...)"
-                  />
-                </div>
-
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
                     <label className="block font-semibold text-slate-300 mb-1">Marca *</label>
@@ -979,14 +974,37 @@ export const InventoryManager: React.FC<InventoryManagerProps> = ({
                     />
                   </div>
                   <div>
-                    <label className="block font-semibold text-slate-300 mb-1">Modelo & Versión *</label>
+                    <label className="block font-semibold text-slate-300 mb-1">Modelo *</label>
                     <input
                       type="text"
                       required
-                      placeholder="Ej: Hilux SRX 4x4 AT"
+                      placeholder="Ej: Hilux"
                       value={modelo}
                       onChange={(e) => setModelo(e.target.value)}
                       className="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-slate-100 focus:outline-none focus:border-cyan-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-semibold text-slate-300 mb-1">Versión / Acabado</label>
+                    <input
+                      type="text"
+                      placeholder="Ej: 2.8 TDI SRX 4x4 AT"
+                      value={version}
+                      onChange={(e) => setVersion(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-slate-100 focus:outline-none focus:border-cyan-500"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 items-end">
+                  <div>
+                    <label className="block font-semibold text-slate-300 mb-1">Patente / Dominio</label>
+                    <input
+                      type="text"
+                      placeholder="Ej: AF123JK"
+                      value={patente}
+                      onChange={(e) => setPatente(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 font-mono text-slate-100 focus:outline-none focus:border-cyan-500 uppercase"
                     />
                   </div>
                   <div>
@@ -1000,19 +1018,6 @@ export const InventoryManager: React.FC<InventoryManagerProps> = ({
                         <option key={tp} value={tp}>{tp}</option>
                       ))}
                     </select>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-                  <div>
-                    <label className="block font-semibold text-slate-300 mb-1">Patente / Dominio</label>
-                    <input
-                      type="text"
-                      placeholder="Ej: AF123JK"
-                      value={patente}
-                      onChange={(e) => setPatente(e.target.value)}
-                      className="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 font-mono text-slate-100 focus:outline-none focus:border-cyan-500 uppercase"
-                    />
                   </div>
                   <div>
                     <label className="block font-semibold text-slate-300 mb-1">Año Fabricación</label>
@@ -1033,7 +1038,7 @@ export const InventoryManager: React.FC<InventoryManagerProps> = ({
                       className="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-slate-100 focus:outline-none focus:border-cyan-500 disabled:opacity-40"
                     />
                   </div>
-                  <div className="flex items-center gap-2 bg-slate-950 p-2.5 rounded-xl border border-slate-700 mt-6">
+                  <div className="flex items-center gap-2 bg-slate-950 p-2.5 rounded-xl border border-slate-700 h-[42px]">
                     <input
                       type="checkbox"
                       id="zerokm_modal"
@@ -1041,7 +1046,7 @@ export const InventoryManager: React.FC<InventoryManagerProps> = ({
                       onChange={(e) => setEsCeroKm(e.target.checked)}
                       className="w-4 h-4 accent-cyan-500 rounded"
                     />
-                    <label htmlFor="zerokm_modal" className="font-bold text-slate-200 cursor-pointer">
+                    <label htmlFor="zerokm_modal" className="font-bold text-slate-200 cursor-pointer text-xs">
                       ¿Es 0KM?
                     </label>
                   </div>

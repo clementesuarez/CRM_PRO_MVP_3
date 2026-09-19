@@ -24,10 +24,11 @@ import {
   EstadoPresupuesto, 
   MotivoPerdida 
 } from './types/crm';
+import { LoginView } from './components/LoginView';
 import { RefreshCw, AlertTriangle } from 'lucide-react';
 
 export const App: React.FC = () => {
-  const { currentRole, can } = useAuth();
+  const { currentRole, can, isAuthenticated } = useAuth();
   const [activeTab, setActiveTab] = useState<TabType>('pipeline');
   
   // Data States
@@ -106,6 +107,9 @@ export const App: React.FC = () => {
     if (activeTab === 'admin' && !can('gestionar_usuarios') && !can('consola_superadmin')) {
       setActiveTab('pipeline');
     }
+    if (activeTab === 'dashboard' && currentRole === 'vendedor') {
+      setActiveTab('pipeline');
+    }
   }, [currentRole, activeTab, can]);
 
   const handleDeleteVehiculo = async (id: string) => {
@@ -148,9 +152,10 @@ export const App: React.FC = () => {
   const handleUpdateEstadoPresupuesto = async (
     id: string,
     estado: EstadoPresupuesto,
-    motivoPerdida?: MotivoPerdida
+    motivoPerdida?: MotivoPerdida,
+    fechaVenta?: string
   ) => {
-    await dataService.updateEstadoPresupuesto(id, estado, motivoPerdida);
+    await dataService.updateEstadoPresupuesto(id, estado, motivoPerdida, fechaVenta);
     await loadAllData();
   };
 
@@ -194,6 +199,10 @@ export const App: React.FC = () => {
     await dataService.importData(data);
     await loadAllData();
   };
+
+  if (!isAuthenticated) {
+    return <LoginView />;
+  }
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">

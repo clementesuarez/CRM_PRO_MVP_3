@@ -14,7 +14,8 @@ import {
   Search,
   FileText,
   UserCheck,
-  ChevronDown
+  ChevronDown,
+  LogOut
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { UserRole, ROLE_LABELS } from '../types/auth';
@@ -36,14 +37,14 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenCommandPalette,
   onOpenVehicleMatchmaker,
 }) => {
-  const { currentRole, setRole, can, currentUser } = useAuth();
+  const { currentRole, setRole, can, currentUser, logout, isAuthenticated } = useAuth();
   const [showRoleMenu, setShowRoleMenu] = useState(false);
 
   // If role is changed to vendedor and current tab is restricted, redirect to pipeline
   const handleRoleChange = (role: UserRole) => {
     setRole(role);
     setShowRoleMenu(false);
-    if (role === 'vendedor' && (activeTab === 'pagares' || activeTab === 'admin')) {
+    if (role === 'vendedor' && (activeTab === 'pagares' || activeTab === 'admin' || activeTab === 'dashboard')) {
       setActiveTab('pipeline');
     }
   };
@@ -204,17 +205,20 @@ export const Navbar: React.FC<NavbarProps> = ({
             <span>Posventa</span>
           </button>
 
-          <button
-            onClick={() => setActiveTab('dashboard')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition shrink-0 ${
-              activeTab === 'dashboard'
-                ? 'bg-cyan-500 text-slate-950 shadow-md shadow-cyan-500/20'
-                : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/50'
-            }`}
-          >
-            <LayoutDashboard className="w-3.5 h-3.5 shrink-0" />
-            <span>Dashboard</span>
-          </button>
+          {/* Tab Dashboard: Solo visible para admin y superadmin */}
+          {(currentRole === 'admin' || currentRole === 'superadmin') && (
+            <button
+              onClick={() => setActiveTab('dashboard')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition shrink-0 ${
+                activeTab === 'dashboard'
+                  ? 'bg-cyan-500 text-slate-950 shadow-md shadow-cyan-500/20'
+                  : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/50'
+              }`}
+            >
+              <LayoutDashboard className="w-3.5 h-3.5 shrink-0" />
+              <span>Dashboard</span>
+            </button>
+          )}
 
           {/* Tab Admin: Solo visible para admin y superadmin */}
           {(can('gestionar_usuarios') || can('consola_superadmin')) && (
@@ -233,15 +237,17 @@ export const Navbar: React.FC<NavbarProps> = ({
         </nav>
 
         {/* Right Desktop Actions */}
-        <div className="hidden lg:flex items-center gap-1.5 justify-end shrink-0">
-          {onOpenCommandPalette && (
-            <button
-              onClick={onOpenCommandPalette}
-              className="px-2.5 py-1.5 rounded-xl bg-slate-900 border border-slate-800 text-slate-300 hover:text-cyan-400 hover:border-cyan-500/40 font-mono text-xs transition flex items-center gap-1.5"
-              title="Buscar en todo el sistema (Atajo: Ctrl + K)"
-            >
-              <kbd className="px-1.5 py-0.5 bg-slate-800 rounded text-[10px] text-cyan-400 font-extrabold">Ctrl K</kbd>
-            </button>
+        <div className="hidden lg:flex items-center gap-2 justify-end shrink-0">
+          {currentUser && (
+            <div className="flex items-center gap-2 px-2.5 py-1 rounded-xl bg-slate-900 border border-slate-800 text-xs">
+              <div className="w-6 h-6 rounded-lg bg-cyan-950 text-cyan-400 font-bold flex items-center justify-center text-[10px] border border-cyan-500/30">
+                {currentUser.nombre ? currentUser.nombre.charAt(0).toUpperCase() : 'U'}
+              </div>
+              <div className="flex flex-col text-left">
+                <span className="font-bold text-slate-200 text-[11px] leading-tight">{currentUser.nombre}</span>
+                <span className="text-[9px] text-slate-400 font-mono leading-none">{currentUser.rol}</span>
+              </div>
+            </div>
           )}
 
           {onOpenVehicleMatchmaker && (
@@ -262,6 +268,17 @@ export const Navbar: React.FC<NavbarProps> = ({
             <PlusCircle className="w-4 h-4" />
             <span>+ Cotización</span>
           </button>
+
+          {isAuthenticated && (
+            <button
+              onClick={logout}
+              className="flex items-center gap-1 px-2.5 py-2 rounded-xl bg-rose-950/40 text-rose-400 border border-rose-500/30 hover:bg-rose-900/60 transition font-bold text-xs shrink-0"
+              title="Cerrar Sesión Activa"
+            >
+              <LogOut className="w-4 h-4" />
+              <span>Salir</span>
+            </button>
+          )}
         </div>
       </div>
     </header>

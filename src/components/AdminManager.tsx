@@ -33,7 +33,10 @@ import {
   AlertTriangle,
   Sliders,
   ShieldAlert,
-  Edit2
+  Edit2,
+  Car,
+  Sparkles,
+  Calendar
 } from 'lucide-react';
 import { Cliente, Inventario, Presupuesto } from '../types/crm';
 import { isSupabaseConfigured } from '../lib/supabaseClient';
@@ -54,7 +57,7 @@ export const AdminManager: React.FC<AdminManagerProps> = ({
   presupuestos,
   onImportData,
 }) => {
-  const { usuarios, addUsuario, updateUsuario, toggleUsuarioActivo, currentRole, can } = useAuth();
+  const { usuarios, addUsuario, updateUsuario, toggleUsuarioActivo, resetUserPassword, currentRole, can } = useAuth();
   const [pinInput, setPinInput] = useState('');
   const [isUnlocked, setIsUnlocked] = useState(true); // Auto-autorizado para admin/superadmin
   const [pinError, setPinError] = useState('');
@@ -63,9 +66,16 @@ export const AdminManager: React.FC<AdminManagerProps> = ({
   // Form State para Nuevo Usuario
   const [nuevoNombre, setNuevoNombre] = useState('');
   const [nuevoEmail, setNuevoEmail] = useState('');
+  const [nuevoUsuario, setNuevoUsuario] = useState('');
+  const [nuevaPassword, setNuevaPassword] = useState('');
   const [nuevoTelefono, setNuevoTelefono] = useState('');
   const [nuevoRol, setNuevoRol] = useState<UserRole>('vendedor');
   const [showAddUserModal, setShowAddUserModal] = useState(false);
+  const [userMsg, setUserMsg] = useState('');
+
+  // Password Reset Modal State
+  const [resetModalUser, setResetModalUser] = useState<{ id: string; nombre: string } | null>(null);
+  const [nuevaClaveReset, setNuevaClaveReset] = useState('');
 
   // Diagnostic State (SuperAdmin)
   const [diagLoading, setDiagLoading] = useState(false);
@@ -83,21 +93,76 @@ export const AdminManager: React.FC<AdminManagerProps> = ({
     }
   };
 
-  const handleCrearUsuario = (e: React.FormEvent) => {
+  // Metadatos y Sincronización de Catálogo DNRPA
+  const [catalogoMeta, setCatalogoMeta] = useState<{
+    ultimaActualizacion: string;
+    totalRegistros: number;
+    requiereActualizacionMes: boolean;
+    esDia10OPosterior: boolean;
+  }>({
+    ultimaActualizacion: '2026-08-10T12:00:00.000Z',
+    totalRegistros: 165,
+    requiereActualizacionMes: false,
+    esDia10OPosterior: false,
+  });
+  const [catalogoSyncing, setCatalogoSyncing] = useState(false);
+  const [catalogoSyncMsg, setCatalogoSyncMsg] = useState('');
+
+  const loadCatalogoMeta = async () => {
+    try {
+      const meta = await dataService.getCatalogoMetadata();
+      setCatalogoMeta(meta);
+    } catch (err) {
+      console.error('Error al cargar metadatos de catálogo:', err);
+    }
+  };
+
+  useEffect(() => {
+    loadCatalogoMeta();
+  }, []);
+
+  const handleSincronizarCatalogo = async () => {
+    setCatalogoSyncing(true);
+    setCatalogoSyncMsg('');
+    try {
+      const res = await dataService.sincronizarCatalogoDNRPA();
+      await loadCatalogoMeta();
+      setCatalogoSyncMsg(res.mensaje);
+      setTimeout(() => setCatalogoSyncMsg(''), 5000);
+    } catch (err) {
+      console.error(err);
+      setCatalogoSyncMsg('Error al sincronizar el catálogo vehicular.');
+    } finally {
+      setCatalogoSyncing(false);
+    }
+  };
+
+  const handleCrearUsuario = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!nuevoNombre || !nuevoEmail) return;
-    addUsuario({
+    await addUsuario({
       nombre: nuevoNombre.trim(),
       email: nuevoEmail.trim(),
+      usuario: nuevoUsuario.trim() || nuevoEmail.split('@')[0],
+      password_hash: nuevaPassword.trim() || '123456',
       telefono: nuevoTelefono.trim() || undefined,
       rol: nuevoRol,
       activo: true,
     });
     setNuevoNombre('');
     setNuevoEmail('');
+    setNuevoUsuario('');
+    setNuevaPassword('');
     setNuevoTelefono('');
     setNuevoRol('vendedor');
     setShowAddUserModal(false);
+    setUserMsg('✅ Usuario creado exitosamente y guardado en SQLite (crm_local.db)');
+    setTimeout(() => setUserMsg(''), 4000);
+  };
+
+  const handleOpenResetModal = (id: string, nombre: string) => {
+    setResetModalUser({ id, nombre });
+    setNuevaClaveReset('');
   };
 
   // Supabase form states
@@ -111,8 +176,43 @@ export const AdminManager: React.FC<AdminManagerProps> = ({
   const [copiedUrl, setCopiedUrl] = useState(false);
   const [serverIp, setServerIp] = useState('192.168.1.100');
   const [serverPort, setServerPort] = useState('5173');
+  // Google Drive Backup State
+  const [drivePath, setDrivePath] = useState(() => localStorage.getItem('autocrm_drive_backup_path') || 'G:\\Mi unidad\\CRM_Backups');
+  const [driveBackupMsg, setDriveBackupMsg] = useState('');
+  const [driveBackupLoading, setDriveBackupLoading] = useState(false);
   const [snapshotMessage, setSnapshotMessage] = useState('');
   const [lastSnapshotDate, setLastSnapshotDate] = useState<string | null>(null);
+
+  // Modals
+  const [jsonRestoreModalData, setJsonRestoreModalData] = useState<{ open: boolean; data: any; fileName: string } | null>(null);
+  const [showCsvHelpModal, setShowCsvHelpModal] = useState(false);
+
+  const handleCreateDriveBackup = async () => {
+    setDriveBackupLoading(true);
+    setDriveBackupMsg('');
+
+    if (drivePath.trim().startsWith('http://') || drivePath.trim().startsWith('https://')) {
+      setDriveBackupMsg('⚠️ La ruta ingresada es una dirección web (URL). Debe indicar una ruta de disco local (ej: G:\\Mi unidad\\CRM_Backups) o presionar "Descargar Copia de Seguridad Directa (.db)".');
+      setDriveBackupLoading(false);
+      return;
+    }
+
+    try {
+      localStorage.setItem('autocrm_drive_backup_path', drivePath);
+      const res = await dataService.createBackupDrive(drivePath);
+      if (res.success) {
+        setDriveBackupMsg(`✅ ¡Copia de seguridad física generada con éxito en SQLite! Archivo: ${res.filename} (${res.size_kb} KB)`);
+        setLastSnapshotDate(new Date().toLocaleString('es-AR'));
+        localStorage.setItem('autocrm_last_snapshot_date', new Date().toLocaleString('es-AR'));
+      } else {
+        setDriveBackupMsg(`❌ Error al crear resguardo: ${res.error}`);
+      }
+    } catch (e: any) {
+      setDriveBackupMsg(`❌ Error de red al invocar el backup.`);
+    } finally {
+      setDriveBackupLoading(false);
+    }
+  };
 
   const ADMIN_PIN = '1234';
 
@@ -188,23 +288,19 @@ export const AdminManager: React.FC<AdminManagerProps> = ({
     downloadAnchor.remove();
   };
 
-  // Full Database JSON Import
+  // Full Database JSON Import with Warning Modal
   const handleImportFullJSON = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     const reader = new FileReader();
-    reader.onload = async (event) => {
+    reader.onload = (event) => {
       try {
         const text = event.target?.result as string;
         const parsed = JSON.parse(text);
 
-        if (parsed.data && (parsed.data.clientes || parsed.data.inventario)) {
-          await onImportData({
-            clientes: parsed.data.clientes || [],
-            inventario: parsed.data.inventario || []
-          });
-          setImportedStatus(`¡Resguardo JSON restaurado con éxito! (${parsed.data.clientes?.length || 0} clientes, ${parsed.data.inventario?.length || 0} vehículos)`);
+        if (parsed.data || parsed.clientes || parsed.inventario) {
+          setJsonRestoreModalData({ open: true, data: parsed, fileName: file.name });
         } else {
           setImportedStatus('El archivo JSON no contiene la estructura requerida de resguardo.');
         }
@@ -214,17 +310,46 @@ export const AdminManager: React.FC<AdminManagerProps> = ({
       }
     };
     reader.readAsText(file);
+    e.target.value = '';
   };
 
-  const createLocalSnapshotPoint = () => {
-    const now = new Date().toLocaleString('es-AR');
-    localStorage.setItem('autocrm_last_snapshot_date', now);
-    localStorage.setItem('autocrm_local_snapshot_clientes', JSON.stringify(clientes));
-    localStorage.setItem('autocrm_local_snapshot_inventario', JSON.stringify(inventario));
-    localStorage.setItem('autocrm_local_snapshot_presupuestos', JSON.stringify(presupuestos));
-    setLastSnapshotDate(now);
-    setSnapshotMessage('¡Punto de restauración local creado exitosamente en memoria física del equipo!');
-    setTimeout(() => setSnapshotMessage(''), 4000);
+  const confirmJsonRestore = async () => {
+    if (!jsonRestoreModalData) return;
+    try {
+      const res = await dataService.importJSONToSQLite(jsonRestoreModalData.data);
+      if (res.success) {
+        await onImportData({
+          clientes: jsonRestoreModalData.data.data?.clientes || jsonRestoreModalData.data.clientes || [],
+          inventario: jsonRestoreModalData.data.data?.inventario || jsonRestoreModalData.data.inventario || []
+        });
+        setImportedStatus(`✅ ${res.mensaje || 'Resguardo JSON restaurado exitosamente en SQLite.'}`);
+      } else {
+        setImportedStatus(`❌ Error en restauración: ${res.error}`);
+      }
+    } catch (err: any) {
+      setImportedStatus('❌ Error al procesar la restauración en SQLite.');
+    } finally {
+      setJsonRestoreModalData(null);
+      setTimeout(() => setImportedStatus(''), 6000);
+    }
+  };
+
+  const createLocalSnapshotPoint = async () => {
+    try {
+      const res = await dataService.createSnapshotPoint();
+      if (res.success) {
+        const now = new Date().toLocaleString('es-AR');
+        setLastSnapshotDate(now);
+        localStorage.setItem('autocrm_last_snapshot_date', now);
+        setSnapshotMessage(`¡Punto de restauración local creado exitosamente en SQLite! (${res.filename})`);
+      } else {
+        setSnapshotMessage(`Error al crear punto de restauración: ${res.error}`);
+      }
+    } catch (e: any) {
+      setSnapshotMessage('Error al invocar punto de restauración en servidor.');
+    } finally {
+      setTimeout(() => setSnapshotMessage(''), 5000);
+    }
   };
 
   const downloadCSV = (filename: string, rows: object[]) => {
@@ -247,7 +372,7 @@ export const AdminManager: React.FC<AdminManagerProps> = ({
     document.body.removeChild(link);
   };
 
-  const handleExportAllExcel = () => {
+  const handleExportAllExcel = async () => {
     downloadCSV('Backup_Clientes_Agencia', clientes);
     downloadCSV('Backup_Inventario_Agencia', inventario);
     downloadCSV('Backup_Presupuestos_Agencia', presupuestos.map(p => ({
@@ -261,44 +386,83 @@ export const AdminManager: React.FC<AdminManagerProps> = ({
       estado: p.estado,
       created_at: p.created_at
     })));
+
+    try {
+      const cuotas = await dataService.getCuotasPagares();
+      if (cuotas && cuotas.length > 0) {
+        downloadCSV('Backup_Pagares_Agencia', cuotas.map((p: any) => ({
+          ID: p.id,
+          Cotizacion_ID: p.cotizacion_id || p.prestamo_id,
+          Cliente: p.cliente?.nombre || p.cliente_id || 'S/D',
+          Nro_Cuota: p.numero_cuota ?? p.nro_cuota ?? 1,
+          Monto: p.monto_cuota ?? p.monto ?? 0,
+          Vencimiento: p.fecha_vencimiento,
+          Fecha_Pago: p.fecha_pago || 'Pendiente',
+          Estado: p.estado
+        })));
+      }
+    } catch (err) {
+      console.error('Error al exportar pagarés:', err);
+    }
   };
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
 
-    const reader = new FileReader();
-    reader.onload = async (event) => {
-      try {
-        const text = event.target?.result as string;
-        const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
-        if (lines.length < 2) return;
+    let totalVehiculosImportados = 0;
+    let totalClientesImportados = 0;
+    const allClientesToImport: Cliente[] = [];
+    const allInventarioToImport: Inventario[] = [];
 
-        const headers = lines[0].split(',').map(h => h.replace(/"/g, '').trim());
-        const dataRows = lines.slice(1).map(line => {
-          const values = line.split(',').map(v => v.replace(/"/g, '').trim());
-          const obj: any = {};
-          headers.forEach((h, i) => {
-            obj[h] = values[i];
-          });
-          return obj;
-        });
+    const fileList = Array.from(files);
 
-        if (headers.includes('patente') || headers.includes('marca')) {
-          await onImportData({ inventario: dataRows });
-          setImportedStatus(`¡Se importaron ${dataRows.length} unidades al Inventario de la Agencia!`);
-        } else if (headers.includes('nombre') || headers.includes('telefono')) {
-          await onImportData({ clientes: dataRows });
-          setImportedStatus(`¡Se importaron ${dataRows.length} clientes a la Base de la Agencia!`);
-        } else {
-          setImportedStatus('Formato CSV no reconocido.');
-        }
-      } catch (err) {
-        console.error(err);
-        setImportedStatus('Error al procesar el archivo CSV/Excel.');
-      }
-    };
-    reader.readAsText(file);
+    for (const file of fileList) {
+      await new Promise<void>((resolve) => {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          try {
+            const text = event.target?.result as string;
+            const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+            if (lines.length >= 2) {
+              const headers = lines[0].split(',').map(h => h.replace(/"/g, '').trim().toLowerCase());
+              const dataRows = lines.slice(1).map(line => {
+                const values = line.split(',').map(v => v.replace(/"/g, '').trim());
+                const obj: any = {};
+                headers.forEach((h, i) => {
+                  obj[h] = values[i];
+                });
+                return obj;
+              });
+
+              if (headers.includes('patente') || headers.includes('marca') || headers.includes('modelo') || headers.includes('precio_venta')) {
+                allInventarioToImport.push(...dataRows);
+                totalVehiculosImportados += dataRows.length;
+              } else if (headers.includes('nombre') || headers.includes('telefono') || headers.includes('dni')) {
+                allClientesToImport.push(...dataRows);
+                totalClientesImportados += dataRows.length;
+              }
+            }
+          } catch (err) {
+            console.error('Error procesando archivo CSV:', file.name, err);
+          }
+          resolve();
+        };
+        reader.readAsText(file);
+      });
+    }
+
+    if (allClientesToImport.length > 0 || allInventarioToImport.length > 0) {
+      await onImportData({
+        clientes: allClientesToImport.length > 0 ? allClientesToImport : undefined,
+        inventario: allInventarioToImport.length > 0 ? allInventarioToImport : undefined
+      });
+      setImportedStatus(`¡Carga masiva completada! Se importaron ${totalVehiculosImportados} vehículos y ${totalClientesImportados} clientes a SQLite.`);
+    } else {
+      setImportedStatus('No se reconocieron las cabeceras requeridas en los archivos CSV seleccionados.');
+    }
+    e.target.value = '';
+    setTimeout(() => setImportedStatus(''), 6000);
   };
 
   // Estimate JSON size in KB
@@ -369,6 +533,7 @@ export const AdminManager: React.FC<AdminManagerProps> = ({
       ) : (
         /* UNLOCKED ADMIN PANEL CONTENT */
         <div className="space-y-6 animate-fade-in">
+
           {/* Sub Navigation Tabs */}
           <div className="flex items-center gap-2 border-b border-slate-800 pb-3 overflow-x-auto">
             <button
@@ -461,6 +626,14 @@ export const AdminManager: React.FC<AdminManagerProps> = ({
                 </button>
               </div>
 
+              {/* Feedback Message Banner */}
+              {userMsg && (
+                <div className="bg-cyan-950/60 border border-cyan-500/40 p-3 rounded-xl flex items-center gap-2 text-cyan-300 text-xs animate-in fade-in">
+                  <CheckCircle2 className="w-4 h-4 text-cyan-400 shrink-0" />
+                  <span className="font-bold">{userMsg}</span>
+                </div>
+              )}
+
               {/* Matriz de Privilegios por Rol */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="p-4 rounded-xl bg-blue-950/20 border border-blue-500/30 space-y-2">
@@ -484,7 +657,7 @@ export const AdminManager: React.FC<AdminManagerProps> = ({
                   </div>
                   <ul className="text-xs text-slate-300 space-y-1">
                     <li className="flex items-center gap-1.5">✅ Acceso a costos reales y márgenes</li>
-                    <li className="flex items-center gap-1.5">✅ Alta / baja y edición de vendedores</li>
+                    <li className="flex items-center gap-1.5">✅ Alta / baja, roles y reset de claves</li>
                     <li className="flex items-center gap-1.5">✅ Gestión de pagarés y cobranzas</li>
                     <li className="flex items-center gap-1.5">✅ Resguardo de bases de datos</li>
                     <li className="flex items-center gap-1.5">✅ KPIs financieros de la agencia</li>
@@ -528,7 +701,10 @@ export const AdminManager: React.FC<AdminManagerProps> = ({
                             <div className="w-7 h-7 rounded-lg bg-slate-800 flex items-center justify-center font-bold text-xs text-cyan-400">
                               {u.nombre.charAt(0)}
                             </div>
-                            <span>{u.nombre}</span>
+                            <div>
+                              <span className="block">{u.nombre}</span>
+                              <span className="text-[10px] text-slate-500 font-mono">id: {u.id}</span>
+                            </div>
                           </td>
                           <td className="p-3 text-slate-300 font-mono">{u.email}</td>
                           <td className="p-3 text-slate-400 font-mono">{u.telefono || '-'}</td>
@@ -555,6 +731,16 @@ export const AdminManager: React.FC<AdminManagerProps> = ({
                                 <option value="admin">Admin</option>
                                 <option value="superadmin">SuperAdmin</option>
                               </select>
+
+                              <button
+                                type="button"
+                                onClick={() => handleOpenResetModal(u.id, u.nombre)}
+                                className="px-2.5 py-1 rounded-lg font-bold text-[11px] bg-amber-950/40 text-amber-300 hover:bg-amber-900/60 border border-amber-500/30 transition flex items-center gap-1"
+                                title="Blanquear / Restablecer Contraseña"
+                              >
+                                <KeyRound className="w-3.5 h-3.5" />
+                                Clave
+                              </button>
 
                               <button
                                 type="button"
@@ -601,6 +787,29 @@ export const AdminManager: React.FC<AdminManagerProps> = ({
                           placeholder="Ej: Martín Gómez"
                           className="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-white focus:outline-none focus:border-cyan-500"
                         />
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block font-semibold text-slate-300 mb-1">Usuario (ID Login)</label>
+                          <input
+                            type="text"
+                            value={nuevoUsuario}
+                            onChange={(e) => setNuevoUsuario(e.target.value)}
+                            placeholder="mgomez"
+                            className="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-white focus:outline-none focus:border-cyan-500 font-mono"
+                          />
+                        </div>
+                        <div>
+                          <label className="block font-semibold text-slate-300 mb-1">Contraseña Inicial</label>
+                          <input
+                            type="password"
+                            value={nuevaPassword}
+                            onChange={(e) => setNuevaPassword(e.target.value)}
+                            placeholder="******"
+                            className="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-white focus:outline-none focus:border-cyan-500 font-mono"
+                          />
+                        </div>
                       </div>
 
                       <div>
@@ -651,7 +860,66 @@ export const AdminManager: React.FC<AdminManagerProps> = ({
                           type="submit"
                           className="px-4 py-2 rounded-xl bg-cyan-500 text-slate-950 font-bold hover:bg-cyan-400"
                         >
-                          Guardar Usuario
+                          Crear Usuario en SQLite
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+                </div>
+              )}
+
+              {/* Modal de Restablecer Contraseña */}
+              {resetModalUser && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in">
+                  <div className="bg-slate-900 border border-slate-700 rounded-2xl p-6 max-w-md w-full shadow-2xl space-y-4">
+                    <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                      <h4 className="font-extrabold text-slate-100 flex items-center gap-2 text-sm">
+                        <KeyRound className="w-5 h-5 text-amber-400" />
+                        Restablecer Contraseña: {resetModalUser.nombre}
+                      </h4>
+                      <button onClick={() => setResetModalUser(null)} className="text-slate-400 hover:text-white">
+                        <X className="w-5 h-5" />
+                      </button>
+                    </div>
+
+                    <form
+                      onSubmit={async (e) => {
+                        e.preventDefault();
+                        if (!nuevaClaveReset.trim() || !resetUserPassword) return;
+                        await resetUserPassword(resetModalUser.id, nuevaClaveReset.trim());
+                        setUserMsg(`🔑 Contraseña de ${resetModalUser.nombre} restablecida exitosamente en SQLite.`);
+                        setResetModalUser(null);
+                        setNuevaClaveReset('');
+                        setTimeout(() => setUserMsg(''), 4000);
+                      }}
+                      className="space-y-3 text-xs"
+                    >
+                      <div>
+                        <label className="block font-semibold text-slate-300 mb-1">Nueva Contraseña para el Usuario *</label>
+                        <input
+                          type="password"
+                          required
+                          autoFocus
+                          value={nuevaClaveReset}
+                          onChange={(e) => setNuevaClaveReset(e.target.value)}
+                          placeholder="Ingresa la nueva contraseña..."
+                          className="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-white font-mono text-sm focus:outline-none focus:border-amber-500"
+                        />
+                      </div>
+
+                      <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-800">
+                        <button
+                          type="button"
+                          onClick={() => setResetModalUser(null)}
+                          className="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 hover:text-white"
+                        >
+                          Cancelar
+                        </button>
+                        <button
+                          type="submit"
+                          className="px-4 py-2 rounded-xl bg-amber-500 text-slate-950 font-bold hover:bg-amber-400"
+                        >
+                          Guardar Nueva Clave
                         </button>
                       </div>
                     </form>
@@ -1038,11 +1306,68 @@ export const AdminManager: React.FC<AdminManagerProps> = ({
                 </button>
               </div>
 
-              {snapshotMessage && (
-                <div className="p-3 bg-emerald-950/60 border border-emerald-500/40 text-emerald-300 text-xs font-bold rounded-xl text-center animate-fade-in">
-                  {snapshotMessage}
+              {/* Google Drive Active Backup Section */}
+              <div className="bg-gradient-to-r from-slate-900 via-slate-900/90 to-cyan-950/40 p-5 rounded-2xl border border-cyan-500/30 space-y-4 shadow-xl">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
+                  <div>
+                    <h4 className="font-extrabold text-sm text-cyan-300 flex items-center gap-2">
+                      <HardDrive className="w-5 h-5 text-cyan-400" />
+                      Copia de Seguridad Física Directa a Google Drive / Disco Local (SQLite)
+                    </h4>
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      Exporta copias del archivo físico <span className="font-mono text-cyan-300">crm_local.db</span> nombradas <span className="font-mono text-slate-200">crm_backup_YYYY-MM-DD_HHmm.db</span>
+                    </p>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      disabled={driveBackupLoading}
+                      onClick={handleCreateDriveBackup}
+                      className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 text-slate-950 font-black text-xs hover:from-cyan-400 hover:to-blue-500 transition shadow-lg shadow-cyan-500/20 shrink-0 flex items-center gap-2 disabled:opacity-50"
+                    >
+                      <Download className="w-4 h-4" />
+                      {driveBackupLoading ? 'Generando Resguardo...' : 'Generar Copia en Ruta Local'}
+                    </button>
+
+                    <a
+                      href="/api/backup/download"
+                      download
+                      className="px-4 py-2.5 rounded-xl bg-slate-800 border border-slate-700 hover:bg-slate-700 text-cyan-300 font-bold text-xs transition flex items-center gap-1.5 shrink-0"
+                      title="Descarga directa a través del navegador para guardar en cualquier carpeta o Google Drive"
+                    >
+                      <Download className="w-4 h-4 text-cyan-400" />
+                      <span>Descargar Copia de Seguridad Directa (.db)</span>
+                    </a>
+                  </div>
                 </div>
-              )}
+
+                <div className="space-y-2">
+                  <label className="block text-xs font-semibold text-slate-300">
+                    Ruta de Destino de Carpeta Google Drive / Resguardo Local:
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={drivePath}
+                      onChange={(e) => setDrivePath(e.target.value)}
+                      placeholder="ej: G:\Mi unidad\CRM_Backups o C:\Users\TuUsuario\Google Drive\CRM_Backups"
+                      className="w-full bg-slate-950 border border-slate-700/80 rounded-xl p-3 text-xs font-mono text-cyan-300 focus:outline-none focus:border-cyan-500"
+                    />
+                  </div>
+                  <p className="text-[11px] text-slate-500">
+                    💡 Si la carpeta no existe, el servidor Node la creará automáticamente en tu disco local o cliente de Google Drive para Windows.
+                  </p>
+                </div>
+
+                {driveBackupMsg && (
+                  <div className={`p-3.5 rounded-xl text-xs font-bold animate-in fade-in ${
+                    driveBackupMsg.startsWith('✅') ? 'bg-emerald-950/60 border border-emerald-500/40 text-emerald-300' : 'bg-rose-950/60 border border-rose-500/40 text-rose-300'
+                  }`}>
+                    {driveBackupMsg}
+                  </div>
+                )}
+              </div>
 
               {/* System Health Stats */}
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -1147,7 +1472,7 @@ export const AdminManager: React.FC<AdminManagerProps> = ({
                     </div>
                     <div>
                       <h4 className="font-bold text-sm text-slate-200">3. Exportar Listados a Excel (.CSV)</h4>
-                      <p className="text-xs text-slate-400">Genera reportes de planillas editables en Excel</p>
+                      <p className="text-xs text-slate-400">Genera reportes de planillas editables (Clientes, Inventario, Presupuestos y Pagarés)</p>
                     </div>
                   </div>
 
@@ -1157,24 +1482,37 @@ export const AdminManager: React.FC<AdminManagerProps> = ({
                     className="w-full py-3 rounded-xl bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-bold text-xs hover:bg-emerald-500 hover:text-slate-950 transition flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/10"
                   >
                     <Download className="w-4 h-4" />
-                    Exportar Clientes e Inventario a Excel
+                    Exportar Clientes, Inventario, Presupuestos y Pagarés a Excel
                   </button>
                 </div>
 
                 {/* CSV / Excel Import Card */}
                 <div className="bg-slate-900/60 p-5 rounded-xl border border-slate-800 space-y-4">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2.5 rounded-xl bg-amber-500/20 text-amber-400 border border-amber-500/30">
-                      <Upload className="w-5 h-5" />
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2.5 rounded-xl bg-amber-500/20 text-amber-400 border border-amber-500/30">
+                        <Upload className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h4 className="font-bold text-sm text-slate-200">4. Carga Masiva Multiarchivo desde Excel (.CSV)</h4>
+                        <p className="text-xs text-slate-400">Importa simultáneamente uno o varios archivos CSV de unidades o contactos</p>
+                      </div>
                     </div>
-                    <div>
-                      <h4 className="font-bold text-sm text-slate-200">4. Carga Masiva desde Excel (.CSV)</h4>
-                      <p className="text-xs text-slate-400">Importa planillas de unidades o contactos</p>
-                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setShowCsvHelpModal(true)}
+                      className="px-2.5 py-1.5 rounded-xl bg-amber-950/60 text-amber-300 border border-amber-500/30 hover:bg-amber-900/80 transition text-xs font-bold flex items-center gap-1 shrink-0"
+                      title="Ver encabezados requeridos para importación"
+                    >
+                      <HelpCircle className="w-4 h-4 text-amber-400" />
+                      <span>Formato CSV (?)</span>
+                    </button>
                   </div>
 
                   <input
                     type="file"
+                    multiple
                     accept=".csv"
                     onChange={handleFileUpload}
                     className="w-full text-xs text-slate-300 file:mr-4 file:py-2.5 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-amber-500/20 file:text-amber-300 hover:file:bg-amber-500 hover:file:text-slate-950 cursor-pointer"
@@ -1283,6 +1621,102 @@ export const AdminManager: React.FC<AdminManagerProps> = ({
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* MODAL DE ADVERTENCIA: RESTAURACIÓN DE RESGUARDO JSON */}
+      {jsonRestoreModalData && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-in fade-in">
+          <div className="bg-slate-900 border border-slate-700 rounded-3xl p-6 max-w-lg w-full shadow-2xl space-y-5">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <h4 className="font-black text-amber-400 flex items-center gap-2 text-sm">
+                <AlertTriangle className="w-5 h-5 text-amber-400" />
+                Advertencia de Restauración de Base de Datos
+              </h4>
+              <button onClick={() => setJsonRestoreModalData(null)} className="text-slate-400 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs text-slate-300">
+              <p className="bg-amber-950/40 border border-amber-500/30 p-3.5 rounded-2xl text-amber-200">
+                <strong>¡Atención!</strong> Esta acción procesará el archivo <span className="font-mono text-white font-bold">{jsonRestoreModalData.fileName}</span> y actualizará los registros de Clientes e Inventario en la base de datos local SQLite.
+              </p>
+              <p className="text-slate-400">
+                Se recomienda haber generado una copia de seguridad previa antes de reemplazar o sincronizar datos masivos.
+              </p>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-800">
+              <button
+                type="button"
+                onClick={() => setJsonRestoreModalData(null)}
+                className="px-4 py-2.5 rounded-xl bg-slate-800 text-slate-300 font-semibold text-xs hover:text-white"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={confirmJsonRestore}
+                className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-600 text-slate-950 font-black text-xs hover:from-amber-400 hover:to-orange-500 shadow-lg shadow-amber-500/20"
+              >
+                Confirmar y Restaurar SQLite
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DE AYUDA Y GUÍA DE FORMATO CSV */}
+      {showCsvHelpModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-in fade-in">
+          <div className="bg-slate-900 border border-slate-700 rounded-3xl p-6 max-w-xl w-full shadow-2xl space-y-5">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <h4 className="font-black text-slate-100 flex items-center gap-2 text-sm">
+                <FileSpreadsheet className="w-5 h-5 text-amber-400" />
+                Instrucciones & Formato de Archivos CSV para Carga Masiva
+              </h4>
+              <button onClick={() => setShowCsvHelpModal(false)} className="text-slate-400 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4 text-xs">
+              <p className="text-slate-300">
+                El sistema detecta automáticamente el tipo de archivo analizando la <strong>primera fila de encabezados</strong>. Puedes seleccionar múltiples archivos CSV simultáneamente.
+              </p>
+
+              <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800 space-y-2">
+                <span className="font-extrabold text-cyan-300 block text-xs">🚗 Formato para Inventario de Vehículos:</span>
+                <p className="text-[11px] text-slate-400">Encabezados requeridos (debe contener al menos uno de estos):</p>
+                <code className="block bg-slate-900 p-2.5 rounded-xl font-mono text-amber-300 text-[11px] border border-slate-800">
+                  marca, modelo, version, anio, precio_venta, costo_toma, estado, patente, kilometraje
+                </code>
+              </div>
+
+              <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800 space-y-2">
+                <span className="font-extrabold text-cyan-300 block text-xs">👥 Formato para Base de Clientes:</span>
+                <p className="text-[11px] text-slate-400">Encabezados requeridos (debe contener al menos uno de estos):</p>
+                <code className="block bg-slate-900 p-2.5 rounded-xl font-mono text-emerald-300 text-[11px] border border-slate-800">
+                  nombre, apellido, dni, telefono, email, localidad, provincia
+                </code>
+              </div>
+
+              <p className="text-[11px] text-slate-400 italic">
+                💡 Tip: Puedes exportar un listado desde el Botón 3 para usarlo como plantilla base editable en Microsoft Excel o Google Sheets.
+              </p>
+            </div>
+
+            <div className="flex items-center justify-end pt-3 border-t border-slate-800">
+              <button
+                type="button"
+                onClick={() => setShowCsvHelpModal(false)}
+                className="px-5 py-2.5 rounded-xl bg-cyan-500 text-slate-950 font-black text-xs hover:bg-cyan-400"
+              >
+                Entendido
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

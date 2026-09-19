@@ -347,15 +347,21 @@ CREATE TABLE IF NOT EXISTS catalogo_vehiculos (
     modelo TEXT NOT NULL,
     version_completa TEXT NOT NULL,
     tipo TEXT, -- Pick-up, SUV, Sedán, Hatchback, Utilitario, etc.
-    origen TEXT -- Nacional / Importado
+    origen TEXT, -- Nacional / Importado
+    anios_disponibles INT[] DEFAULT '{}'
 );
 
 CREATE INDEX IF NOT EXISTS idx_catalogo_marca_modelo ON catalogo_vehiculos(marca, modelo);
 CREATE INDEX IF NOT EXISTS idx_catalogo_trgm ON catalogo_vehiculos USING gin (version_completa gin_trgm_ops);
 
--- Vinculación en inventario (FK Opcional)
+-- Vinculación en inventario y permutas (FK y columnas de especificación)
 ALTER TABLE inventario ADD COLUMN IF NOT EXISTS catalogo_id BIGINT REFERENCES catalogo_vehiculos(id) ON DELETE SET NULL;
+ALTER TABLE inventario ADD COLUMN IF NOT EXISTS version TEXT;
 CREATE INDEX IF NOT EXISTS idx_inventario_catalogo ON inventario(catalogo_id);
+
+ALTER TABLE permutas ADD COLUMN IF NOT EXISTS marca TEXT;
+ALTER TABLE permutas ADD COLUMN IF NOT EXISTS modelo TEXT;
+ALTER TABLE permutas ADD COLUMN IF NOT EXISTS version TEXT;
 
 -- ============================================================================
 -- 14. POLÍTICAS RLS ESTRICTAS (SEGURIDAD POR ROL)

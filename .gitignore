@@ -60,3 +60,9 @@ dist-ssr/
 
 # Backups
 src_BACKUP_SNAPSHOT/
+
+# SQLite Databases
+*.db
+*.db-journal
+*.db-shm
+*.db-wal

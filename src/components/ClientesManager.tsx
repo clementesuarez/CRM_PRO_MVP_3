@@ -26,7 +26,9 @@ import {
   CheckSquare,
   History,
   Send,
-  DollarSign
+  DollarSign,
+  Scan,
+  Sparkles
 } from 'lucide-react';
 import { 
   Cliente, 
@@ -38,6 +40,8 @@ import {
   TipoInteraccion
 } from '../types/crm';
 import { WhatsAppModal } from './WhatsAppModal';
+import { DniScannerModal } from './DniScannerModal';
+import { DniParsedResult, formatDni } from '../utils/dniParser';
 import { flexSearchMatch } from '../utils/searchHelper';
 import { dataService } from '../services/dataService';
 
@@ -137,6 +141,9 @@ export const ClientesManager: React.FC<ClientesManagerProps> = ({
   const [email, setEmail] = useState('');
   const [tipoDocumento, setTipoDocumento] = useState<TipoDocumento>('DNI');
   const [numeroDocumento, setNumeroDocumento] = useState('');
+  const [sexo, setSexo] = useState<'M' | 'F' | 'X' | string>('');
+  const [fechaNacimiento, setFechaNacimiento] = useState('');
+  const [numeroTramite, setNumeroTramite] = useState('');
   const [domicilioCalle, setDomicilioCalle] = useState('');
   const [domicilioNumero, setDomicilioNumero] = useState('');
   const [localidad, setLocalidad] = useState('');
@@ -148,6 +155,10 @@ export const ClientesManager: React.FC<ClientesManagerProps> = ({
   const [autoPermutaDetalle, setAutoPermutaDetalle] = useState('');
   const [tipoCliente, setTipoCliente] = useState<TipoCliente>('Prospecto');
   const [notas, setNotas] = useState('');
+
+  // Scanner Modal & Mode State
+  const [scannerModalOpen, setScannerModalOpen] = useState(false);
+  const [isDniManualMode, setIsDniManualMode] = useState(false);
 
   // Inline New Interaction Form State in Modal
   const [newIntTipo, setNewIntTipo] = useState<TipoInteraccion>('Vino al salón');
@@ -170,6 +181,10 @@ export const ClientesManager: React.FC<ClientesManagerProps> = ({
     setEmail('');
     setTipoDocumento('DNI');
     setNumeroDocumento('');
+    setSexo('');
+    setFechaNacimiento('');
+    setNumeroTramite('');
+    setIsDniManualMode(false);
     setDomicilioCalle('');
     setDomicilioNumero('');
     setLocalidad('');
@@ -199,6 +214,10 @@ export const ClientesManager: React.FC<ClientesManagerProps> = ({
     setEmail(c.email || '');
     setTipoDocumento(c.tipo_documento || 'DNI');
     setNumeroDocumento(c.numero_documento || '');
+    setSexo(c.sexo || '');
+    setFechaNacimiento(c.fecha_nacimiento || '');
+    setNumeroTramite(c.numero_tramite || '');
+    setIsDniManualMode(true);
     setDomicilioCalle(c.domicilio_calle || '');
     setDomicilioNumero(c.domicilio_numero || '');
     setLocalidad(c.localidad || '');
@@ -213,6 +232,18 @@ export const ClientesManager: React.FC<ClientesManagerProps> = ({
     setModalTab(initialTab);
     setNewIntNota('');
     setNewIntProximo('');
+    setModalOpen(true);
+  };
+
+  const handleDniScanned = (data: DniParsedResult) => {
+    setNombre(data.nombre);
+    setApellido(data.apellido);
+    setTipoDocumento('DNI');
+    setNumeroDocumento(data.documento_formateado || data.numero_documento);
+    if (data.sexo) setSexo(data.sexo);
+    if (data.fecha_nacimiento) setFechaNacimiento(data.fecha_nacimiento);
+    if (data.numero_tramite) setNumeroTramite(data.numero_tramite);
+    setIsDniManualMode(false);
     setModalOpen(true);
   };
 
@@ -259,23 +290,26 @@ export const ClientesManager: React.FC<ClientesManagerProps> = ({
     setLoading(true);
 
     const payload = {
-      nombre,
-      apellido,
-      telefono,
-      email,
+      nombre: nombre.trim(),
+      apellido: apellido.trim() || undefined,
+      telefono: telefono.trim(),
+      email: email.trim() || undefined,
       tipo_documento: tipoDocumento,
-      numero_documento: numeroDocumento,
-      domicilio_calle: domicilioCalle,
-      domicilio_numero: domicilioNumero,
-      localidad,
+      numero_documento: numeroDocumento.trim() || undefined,
+      sexo: (sexo as any) || undefined,
+      fecha_nacimiento: fechaNacimiento || undefined,
+      numero_tramite: numeroTramite.trim() || undefined,
+      domicilio_calle: domicilioCalle.trim() || undefined,
+      domicilio_numero: domicilioNumero.trim() || undefined,
+      localidad: localidad.trim() || undefined,
       provincia,
-      codigo_postal: codigoPostal,
+      codigo_postal: codigoPostal.trim() || undefined,
       compro_credito: comproCredito,
       monto_credito: comproCredito ? Number(montoCredito) : 0,
       deja_auto_permuta: dejaAutoPermuta,
-      auto_permuta_detalle: dejaAutoPermuta ? autoPermutaDetalle : '',
+      auto_permuta_detalle: dejaAutoPermuta ? autoPermutaDetalle.trim() : undefined,
       tipo_cliente: tipoCliente,
-      notas,
+      notas: notas.trim() || undefined,
     };
 
     try {
@@ -328,13 +362,27 @@ export const ClientesManager: React.FC<ClientesManagerProps> = ({
           </p>
         </div>
 
-        <button
-          onClick={handleOpenAdd}
-          className="flex items-center gap-2 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 font-black text-xs px-4 py-2.5 rounded-xl shadow-lg shadow-cyan-500/20 active:scale-95 transition"
-        >
-          <Plus className="w-4 h-4" />
-          <span>+ Registrar Nuevo Cliente</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              resetForm();
+              setScannerModalOpen(true);
+            }}
+            className="flex items-center gap-1.5 bg-slate-900 hover:bg-slate-800 text-cyan-400 border border-cyan-500/40 font-bold text-xs px-3.5 py-2.5 rounded-xl shadow-md transition active:scale-95 cursor-pointer"
+          >
+            <Scan className="w-4 h-4 text-cyan-400" />
+            <span>Escanear DNI (PDF417)</span>
+          </button>
+
+          <button
+            onClick={handleOpenAdd}
+            className="flex items-center gap-2 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 font-black text-xs px-4 py-2.5 rounded-xl shadow-lg shadow-cyan-500/20 active:scale-95 transition cursor-pointer"
+          >
+            <Plus className="w-4 h-4" />
+            <span>+ Registrar Nuevo Cliente</span>
+          </button>
+        </div>
       </div>
 
       {/* Filter and Search Bar */}
@@ -732,9 +780,20 @@ export const ClientesManager: React.FC<ClientesManagerProps> = ({
               <form onSubmit={handleSubmit} className="space-y-5 text-xs">
                 {/* SECTION 1: DATOS PERSONALES */}
                 <div className="bg-slate-900/60 p-4 rounded-xl border border-slate-800 space-y-3">
-                  <div className="font-bold text-cyan-400 uppercase tracking-wider text-[11px] flex items-center gap-1.5">
-                    <User className="w-4 h-4" />
-                    1. Datos Personales & Documentación
+                  <div className="flex items-center justify-between">
+                    <div className="font-bold text-cyan-400 uppercase tracking-wider text-[11px] flex items-center gap-1.5">
+                      <User className="w-4 h-4" />
+                      1. Datos Personales & Documentación
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setScannerModalOpen(true)}
+                      className="px-2.5 py-1 rounded-lg bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 text-[11px] font-bold hover:bg-cyan-500 hover:text-slate-950 transition flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <Scan className="w-3.5 h-3.5" />
+                      <span>Escanear DNI (PDF417)</span>
+                    </button>
                   </div>
                   
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -761,7 +820,7 @@ export const ClientesManager: React.FC<ClientesManagerProps> = ({
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
                     <div>
                       <label className="block font-semibold text-slate-300 mb-1">Tipo Documento</label>
                       <select
@@ -783,6 +842,28 @@ export const ClientesManager: React.FC<ClientesManagerProps> = ({
                         value={numeroDocumento}
                         onChange={(e) => setNumeroDocumento(e.target.value)}
                         className="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 font-mono text-slate-100 focus:outline-none focus:border-cyan-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block font-semibold text-slate-300 mb-1">Sexo (DNI)</label>
+                      <select
+                        value={sexo}
+                        onChange={(e) => setSexo(e.target.value)}
+                        className="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-slate-100 focus:outline-none focus:border-cyan-500"
+                      >
+                        <option value="">No especificado</option>
+                        <option value="M">Masculino (M)</option>
+                        <option value="F">Femenino (F)</option>
+                        <option value="X">No Binario (X)</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block font-semibold text-slate-300 mb-1">Fecha Nacimiento</label>
+                      <input
+                        type="date"
+                        value={fechaNacimiento}
+                        onChange={(e) => setFechaNacimiento(e.target.value)}
+                        className="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-slate-100 focus:outline-none focus:border-cyan-500 font-mono"
                       />
                     </div>
                   </div>
@@ -1544,6 +1625,17 @@ export const ClientesManager: React.FC<ClientesManagerProps> = ({
           defaultTemplateType="cotizacion"
         />
       )}
+
+      {/* DNI PDF417 SCANNER MODAL */}
+      <DniScannerModal
+        isOpen={scannerModalOpen}
+        onClose={() => setScannerModalOpen(false)}
+        onScanSuccess={handleDniScanned}
+        onManualModeToggle={() => {
+          setIsDniManualMode(true);
+          setModalOpen(true);
+        }}
+      />
     </div>
   );
 };

@@ -88,6 +88,9 @@ export interface Cliente {
   deja_auto_permuta?: boolean;
   auto_permuta_detalle?: string;
   tipo_cliente: TipoCliente;
+  sexo?: 'M' | 'F' | 'X' | string;
+  fecha_nacimiento?: string;
+  numero_tramite?: string;
   notas?: string;
   ultimo_contacto?: string;
   created_at: string;
@@ -136,6 +139,11 @@ export interface Inventario {
   origen_transaccion?: 'Compra Directa a Cliente' | 'Toma en Permuta por Venta' | 'Consignación' | 'Stock Propio 0km/Usado';
   es_solo_compra?: boolean;
   fecha_compra?: string;
+  fecha_ingreso?: string;
+  fecha_venta?: string;
+  motivo_perdida?: MotivoPerdida;
+  precio_venta?: number;
+  costo_toma?: number;
   estado: EstadoVehiculo;
   observaciones?: string;
   created_at: string;
@@ -145,6 +153,9 @@ export interface Permuta {
   id: string;
   presupuesto_id: string;
   patente?: string;
+  marca?: string;
+  modelo?: string;
+  version?: string;
   marca_modelo: string;
   anio: number;
   kilometraje: number;
@@ -200,6 +211,32 @@ export interface DashboardMetrics {
   valorTotalStockARS: number;
   motivosPerdida: { motivo: string; cantidad: number }[];
   evolucionVentas: { mes: string; ventas: number; monto: number }[];
+
+  // 5 Paneles del Tablero Directivo:
+  cotizaciones: {
+    volumenMesActual: number;
+    comparativaMesAnteriorPct: number;
+    desvioPromedioAnualPct: number;
+    totalAnio: number;
+  };
+  rotacionStock: {
+    promedioDiasStock: number;
+    unidadMasRapidaDias?: number;
+    unidadesAnalizadas: number;
+  };
+  ventas: {
+    mesCorriente: number;
+    mesAnterior: number;
+    mismoMesAnioAnterior: number;
+  };
+  pagaresMetrics: {
+    montoPromedioPagare: number;
+    tasaEndeudamientoPct: number;
+    diasMoraPromedio: number;
+    cuotasVencidasCount: number;
+    cuotasCobradasCount: number;
+    cuotasPendientesCount: number;
+  };
 }
 
 // ----------------------------------------------------------------------------

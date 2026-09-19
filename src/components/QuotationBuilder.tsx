@@ -16,10 +16,15 @@ import {
   Sparkles,
   MessageSquare,
   Edit3,
-  Lock
+  Lock,
+  Scan
 } from 'lucide-react';
 import { Cliente, Inventario, Permuta, Presupuesto, PresupuestoVehiculoItem, TipoMoneda } from '../types/crm';
 import { WhatsAppModal } from './WhatsAppModal';
+import { VehicleAutocomplete } from './VehicleAutocomplete';
+import { DniScannerModal } from './DniScannerModal';
+import { DniParsedResult } from '../utils/dniParser';
+import { CatalogoVehiculoItem } from '../data/catalogoVehicular';
 import { flexSearchMatch } from '../utils/searchHelper';
 
 interface QuotationBuilderProps {
@@ -66,8 +71,18 @@ export const QuotationBuilder: React.FC<QuotationBuilderProps> = ({
   const [isNewCliente, setIsNewCliente] = useState(false);
   const [newNombre, setNewNombre] = useState('');
   const [newApellido, setNewApellido] = useState('');
+  const [newDocumento, setNewDocumento] = useState('');
   const [newTelefono, setNewTelefono] = useState('');
   const [newEmail, setNewEmail] = useState('');
+  const [newLocalidad, setNewLocalidad] = useState('');
+  const [clientScannerOpen, setClientScannerOpen] = useState(false);
+
+  const handleClientDniScanned = (data: DniParsedResult) => {
+    setNewNombre(data.nombre);
+    setNewApellido(data.apellido);
+    setNewDocumento(data.documento_formateado || data.numero_documento);
+    setIsNewCliente(true);
+  };
 
   // Stock Multi-Vehicle State
   const [vehiculoSearch, setVehiculoSearch] = useState('');
@@ -81,12 +96,17 @@ export const QuotationBuilder: React.FC<QuotationBuilderProps> = ({
 
   // Permuta (Trade-in) State
   const [hasPermuta, setHasPermuta] = useState(false);
+  const [permutaManualMode, setPermutaManualMode] = useState(false);
   const [permutaPatente, setPermutaPatente] = useState('');
+  const [permutaMarca, setPermutaMarca] = useState('');
+  const [permutaModelo, setPermutaModelo] = useState('');
+  const [permutaVersion, setPermutaVersion] = useState('');
   const [permutaMarcaModelo, setPermutaMarcaModelo] = useState('');
   const [permutaAnio, setPermutaAnio] = useState<number>(new Date().getFullYear() - 5);
   const [permutaKm, setPermutaKm] = useState<number>(80000);
   const [permutaValorTasacion, setPermutaValorTasacion] = useState<number>(0);
   const [permutaNotas, setPermutaNotas] = useState('');
+  const [showCatalogoQuoteSelector, setShowCatalogoQuoteSelector] = useState(false);
 
   // Export & WhatsApp Modal state
   const [exportModalOpen, setExportModalOpen] = useState(false);
@@ -136,13 +156,20 @@ export const QuotationBuilder: React.FC<QuotationBuilderProps> = ({
       if (presupuestoToEdit.permuta) {
         setHasPermuta(true);
         setPermutaPatente(presupuestoToEdit.permuta.patente || '');
-        setPermutaMarcaModelo(presupuestoToEdit.permuta.marca_modelo);
+        setPermutaMarca(presupuestoToEdit.permuta.marca || '');
+        setPermutaModelo(presupuestoToEdit.permuta.modelo || '');
+        setPermutaVersion(presupuestoToEdit.permuta.version || '');
+        setPermutaMarcaModelo(presupuestoToEdit.permuta.marca_modelo || '');
         setPermutaAnio(presupuestoToEdit.permuta.anio);
         setPermutaKm(presupuestoToEdit.permuta.kilometraje);
         setPermutaValorTasacion(presupuestoToEdit.permuta.valor_tasacion);
         setPermutaNotas(presupuestoToEdit.permuta.observaciones || '');
       } else {
         setHasPermuta(false);
+        setPermutaMarca('');
+        setPermutaModelo('');
+        setPermutaVersion('');
+        setPermutaMarcaModelo('');
       }
     } else if (isOpen && !presupuestoToEdit) {
       // Reset form for new quote
@@ -152,13 +179,23 @@ export const QuotationBuilder: React.FC<QuotationBuilderProps> = ({
       setPrecioOfrecido(0);
       setAnticipo(0);
       setHasPermuta(false);
+      setPermutaMarca('');
+      setPermutaModelo('');
+      setPermutaVersion('');
+      setPermutaMarcaModelo('');
+      setNewNombre('');
+      setNewApellido('');
+      setNewDocumento('');
+      setNewTelefono('');
+      setNewEmail('');
+      setNewLocalidad('');
       setIsNewCliente(false);
     }
   }, [isOpen, presupuestoToEdit]);
 
   const filteredClientes = useMemo(() => {
     return clientes.filter(c => {
-      const fullText = `${c.nombre} ${c.telefono} ${c.email || ''}`;
+      const fullText = `${c.nombre} ${c.apellido || ''} ${c.numero_documento || ''} ${c.telefono} ${c.email || ''}`;
       return flexSearchMatch(fullText, clienteSearch);
     });
   }, [clientes, clienteSearch]);
@@ -277,10 +314,12 @@ export const QuotationBuilder: React.FC<QuotationBuilderProps> = ({
       let nuevoClienteObj = undefined;
       if (isNewCliente) {
         nuevoClienteObj = {
-          nombre: newNombre,
-          apellido: newApellido,
-          telefono: newTelefono,
-          email: newEmail,
+          nombre: newNombre.trim(),
+          apellido: newApellido.trim() || undefined,
+          telefono: newTelefono.trim(),
+          email: newEmail.trim() || undefined,
+          numero_documento: newDocumento.trim() || undefined,
+          localidad: newLocalidad.trim() || undefined,
           tipo_cliente: 'Prospecto' as const,
         };
       }
@@ -288,13 +327,16 @@ export const QuotationBuilder: React.FC<QuotationBuilderProps> = ({
       let permutaObj = undefined;
       if (hasPermuta) {
         permutaObj = {
-          patente: permutaPatente,
-          marca_modelo: permutaMarcaModelo,
+          patente: permutaPatente.toUpperCase().trim() || undefined,
+          marca: permutaMarca.trim() || undefined,
+          modelo: permutaModelo.trim() || undefined,
+          version: permutaVersion.trim() || undefined,
+          marca_modelo: `${permutaMarca} ${permutaModelo} ${permutaVersion}`.trim() || permutaMarcaModelo.trim(),
           anio: Number(permutaAnio),
           kilometraje: Number(permutaKm),
           moneda,
           valor_tasacion: Number(permutaValorTasacion),
-          observaciones: permutaNotas,
+          observaciones: permutaNotas.trim() || undefined,
         };
       }
 
@@ -418,22 +460,33 @@ _Cotización válida por 7 días. ¡Consultanos por entrega inmediata!_`;
           <div className="space-y-6">
             {/* SECCIÓN CLIENTE */}
             <div className="bg-slate-900/60 p-4 rounded-xl border border-slate-800 space-y-3">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between flex-wrap gap-2">
                 <label className="text-xs font-bold text-slate-200 uppercase tracking-wider flex items-center gap-2">
                   <User className="w-4 h-4 text-cyan-400" />
                   1. Selección de Cliente
                 </label>
-                <button
-                  type="button"
-                  onClick={() => setIsNewCliente(!isNewCliente)}
-                  className="text-xs font-semibold text-cyan-400 hover:text-cyan-300 flex items-center gap-1 underline underline-offset-4"
-                >
-                  {isNewCliente ? '← Elegir Cliente Existente' : '+ Crear Cliente Nuevo'}
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setClientScannerOpen(true)}
+                    className="text-xs font-bold px-3 py-1.5 rounded-lg bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/20 flex items-center gap-1.5 transition active:scale-95 shadow-sm"
+                    title="Escanear DNI argentino (Lector USB o Cámara)"
+                  >
+                    <Scan className="w-3.5 h-3.5" />
+                    Escanear DNI
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsNewCliente(!isNewCliente)}
+                    className="text-xs font-semibold text-cyan-400 hover:text-cyan-300 flex items-center gap-1 underline underline-offset-4"
+                  >
+                    {isNewCliente ? '← Elegir Cliente Existente' : '+ Carga Manual'}
+                  </button>
+                </div>
               </div>
 
               {isNewCliente ? (
-                <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 pt-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 pt-2">
                   <div>
                     <label className="block text-[11px] font-medium text-slate-400 mb-1">Nombre *</label>
                     <input
@@ -455,10 +508,20 @@ _Cotización válida por 7 días. ¡Consultanos por entrega inmediata!_`;
                     />
                   </div>
                   <div>
+                    <label className="block text-[11px] font-medium text-slate-400 mb-1">DNI / CUIT</label>
+                    <input
+                      type="text"
+                      placeholder="Ej: 34567890"
+                      value={newDocumento}
+                      onChange={(e) => setNewDocumento(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-xs text-slate-100 focus:outline-none focus:border-cyan-500 font-mono"
+                    />
+                  </div>
+                  <div>
                     <label className="block text-[11px] font-medium text-slate-400 mb-1">Teléfono (WhatsApp) *</label>
                     <input
                       type="text"
-                      placeholder="Ej: 5491199887766"
+                      placeholder="Ej: +54 9 11 9988-7766"
                       value={newTelefono}
                       onChange={(e) => setNewTelefono(e.target.value)}
                       className="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-xs text-slate-100 focus:outline-none focus:border-cyan-500"
@@ -471,6 +534,16 @@ _Cotización válida por 7 días. ¡Consultanos por entrega inmediata!_`;
                       placeholder="email@ejemplo.com"
                       value={newEmail}
                       onChange={(e) => setNewEmail(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-xs text-slate-100 focus:outline-none focus:border-cyan-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-medium text-slate-400 mb-1">Localidad / Ciudad</label>
+                    <input
+                      type="text"
+                      placeholder="Ej: Ramos Mejía, BA"
+                      value={newLocalidad}
+                      onChange={(e) => setNewLocalidad(e.target.value)}
                       className="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-xs text-slate-100 focus:outline-none focus:border-cyan-500"
                     />
                   </div>
@@ -523,16 +596,70 @@ _Cotización válida por 7 días. ¡Consultanos por entrega inmediata!_`;
                 </span>
               </div>
 
-              <div className="relative">
-                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                <input
-                  type="text"
-                  placeholder="Búsqueda predictiva (ej: 'hilux', '208', 'AF123', 'amarok')..."
-                  value={vehiculoSearch}
-                  onChange={(e) => setVehiculoSearch(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-700 rounded-xl pl-9 pr-4 py-2 text-xs text-slate-100 focus:outline-none focus:border-cyan-500"
-                />
+              <div className="flex items-center justify-between gap-2">
+                <div className="relative flex-1">
+                  <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="text"
+                    placeholder="Búsqueda predictiva en salón (ej: 'hilux', '208', 'AF123', 'amarok')..."
+                    value={vehiculoSearch}
+                    onChange={(e) => setVehiculoSearch(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl pl-9 pr-4 py-2 text-xs text-slate-100 focus:outline-none focus:border-cyan-500"
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowCatalogoQuoteSelector(!showCatalogoQuoteSelector)}
+                  className={`px-3 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shrink-0 cursor-pointer ${
+                    showCatalogoQuoteSelector
+                      ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
+                      : 'bg-amber-950/40 text-amber-300 border border-amber-500/30 hover:bg-amber-900/60'
+                  }`}
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>{showCatalogoQuoteSelector ? 'Ocultar Catálogo' : 'Catálogo DNRPA'}</span>
+                </button>
               </div>
+
+              {showCatalogoQuoteSelector && (
+                <div className="bg-amber-950/20 p-3 rounded-xl border border-amber-500/30 space-y-2 animate-fade-in">
+                  <div className="flex items-center justify-between">
+                    <span className="text-amber-400 font-bold text-xs flex items-center gap-1.5">
+                      <Sparkles className="w-3.5 h-3.5" />
+                      Buscar modelo en Catálogo DNRPA para cotizar
+                    </span>
+                    <span className="text-[10px] text-slate-400">Agrega la unidad aunque no esté en el stock actual</span>
+                  </div>
+                  <VehicleAutocomplete
+                    placeholder="Escribe para buscar en catálogo oficial (ej: Amarok V6, Hilux SRX, Cronos, 208 GT...)"
+                    onSelect={(item) => {
+                      const customId = 'cat_' + item.id + '_' + Date.now();
+                      const customVehiculo: Inventario = {
+                        id: customId,
+                        patente: '0KM CATÁLOGO',
+                        marca: item.marca,
+                        modelo: item.modelo,
+                        version: item.version_completa,
+                        catalogo_id: item.id,
+                        anio: item.anios_disponibles ? item.anios_disponibles[item.anios_disponibles.length - 1] : new Date().getFullYear(),
+                        kilometraje: 0,
+                        es_cero_km: true,
+                        moneda: 'USD',
+                        precio_lista: 22000,
+                        costo_compra: 18000,
+                        tipo_vehiculo: item.tipo,
+                        estado: 'Disponible',
+                        observaciones: `Cotizado desde catálogo oficial DNRPA: ${item.origen}`,
+                        created_at: new Date().toISOString()
+                      };
+                      inventario.push(customVehiculo);
+                      handleToggleVehiculo(customVehiculo);
+                      setShowCatalogoQuoteSelector(false);
+                    }}
+                    onManualToggle={() => setShowCatalogoQuoteSelector(false)}
+                  />
+                </div>
+              )}
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-56 overflow-y-auto pr-1">
                 {filteredVehicles.length === 0 ? (
@@ -801,7 +928,86 @@ _Cotización válida por 7 días. ¡Consultanos por entrega inmediata!_`;
 
               {hasPermuta && (
                 <div className="pt-3 border-t border-slate-800/80 space-y-3 animate-fade-in">
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  {/* BÚSQUEDA DNRPA PARA UNIDAD EN PERMUTA */}
+                  <div className="bg-slate-950/80 p-3 rounded-xl border border-amber-500/30 space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-amber-400 font-bold text-[11px] flex items-center gap-1.5">
+                        <Sparkles className="w-3.5 h-3.5" />
+                        Autocompletar Unidad en Permuta desde Catálogo DNRPA
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setPermutaManualMode(!permutaManualMode)}
+                        className="text-[10px] text-slate-400 hover:text-amber-300 underline font-medium cursor-pointer"
+                      >
+                        {permutaManualMode ? '⚡ Usar Catálogo Predictivo' : '✏️ Cargar manualmente'}
+                      </button>
+                    </div>
+
+                    {!permutaManualMode ? (
+                      <VehicleAutocomplete
+                        placeholder="Buscar marca y modelo del usado (ej: Cronos 1.3, Gol Trend, Hilux...)"
+                        onSelect={(item) => {
+                          setPermutaMarca(item.marca);
+                          setPermutaModelo(item.modelo);
+                          setPermutaVersion(item.version_completa);
+                          setPermutaMarcaModelo(`${item.marca} ${item.version_completa}`);
+                          if (item.anios_disponibles && item.anios_disponibles.length > 0) {
+                            setPermutaAnio(item.anios_disponibles[item.anios_disponibles.length - 1]);
+                          }
+                        }}
+                        onManualToggle={() => setPermutaManualMode(true)}
+                      />
+                    ) : (
+                      <div className="text-[10px] text-amber-300 font-medium">
+                        ✏️ Modo manual activo: escribe la marca, modelo y versión directamente en los campos inferiores.
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div>
+                      <label className="block text-[11px] font-medium text-slate-400 mb-1">Marca Usado *</label>
+                      <input
+                        type="text"
+                        placeholder="Ej: Volkswagen"
+                        value={permutaMarca}
+                        onChange={(e) => {
+                          setPermutaMarca(e.target.value);
+                          setPermutaMarcaModelo(`${e.target.value} ${permutaModelo} ${permutaVersion}`.trim());
+                        }}
+                        className="w-full bg-slate-950 border border-slate-700 rounded-xl p-2 text-xs text-slate-100 focus:outline-none focus:border-amber-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-medium text-slate-400 mb-1">Modelo Usado *</label>
+                      <input
+                        type="text"
+                        placeholder="Ej: Gol Trend"
+                        value={permutaModelo}
+                        onChange={(e) => {
+                          setPermutaModelo(e.target.value);
+                          setPermutaMarcaModelo(`${permutaMarca} ${e.target.value} ${permutaVersion}`.trim());
+                        }}
+                        className="w-full bg-slate-950 border border-slate-700 rounded-xl p-2 text-xs text-slate-100 focus:outline-none focus:border-amber-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-medium text-slate-400 mb-1">Versión Usado</label>
+                      <input
+                        type="text"
+                        placeholder="Ej: 1.6 MSI Trendline 5P"
+                        value={permutaVersion}
+                        onChange={(e) => {
+                          setPermutaVersion(e.target.value);
+                          setPermutaMarcaModelo(`${permutaMarca} ${permutaModelo} ${e.target.value}`.trim());
+                        }}
+                        className="w-full bg-slate-950 border border-slate-700 rounded-xl p-2 text-xs text-slate-100 focus:outline-none focus:border-amber-500"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <div>
                       <label className="block text-[11px] font-medium text-slate-400 mb-1">Patente Usado</label>
                       <input
@@ -809,17 +1015,7 @@ _Cotización válida por 7 días. ¡Consultanos por entrega inmediata!_`;
                         placeholder="Ej: AB123CD"
                         value={permutaPatente}
                         onChange={(e) => setPermutaPatente(e.target.value.toUpperCase())}
-                        className="w-full bg-slate-950 border border-slate-700 rounded-xl p-2 text-xs font-mono text-slate-100 focus:outline-none focus:border-amber-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[11px] font-medium text-slate-400 mb-1">Marca y Modelo *</label>
-                      <input
-                        type="text"
-                        placeholder="Ej: VW Gol Trend 1.6"
-                        value={permutaMarcaModelo}
-                        onChange={(e) => setPermutaMarcaModelo(e.target.value)}
-                        className="w-full bg-slate-950 border border-slate-700 rounded-xl p-2 text-xs text-slate-100 focus:outline-none focus:border-amber-500"
+                        className="w-full bg-slate-950 border border-slate-700 rounded-xl p-2 text-xs font-mono text-slate-100 focus:outline-none focus:border-amber-500 uppercase"
                       />
                     </div>
                     <div>
@@ -972,6 +1168,17 @@ _Cotización válida por 7 días. ¡Consultanos por entrega inmediata!_`;
         vehiculoNombre={selectedVehicles.map(v => `${v.marca} ${v.modelo}`).join(' + ')}
         precioFormatted={`${precioOfrecido.toLocaleString()} ${moneda}`}
         defaultTemplateType="cotizacion"
+      />
+
+      {/* DNI SCANNER MODAL */}
+      <DniScannerModal
+        isOpen={clientScannerOpen}
+        onClose={() => setClientScannerOpen(false)}
+        onScanSuccess={handleClientDniScanned}
+        onManualModeToggle={() => {
+          setClientScannerOpen(false);
+          setIsNewCliente(true);
+        }}
       />
     </div>
   );

@@ -8,7 +8,7 @@ interface DealClosureModalProps {
   onClose: () => void;
   presupuesto: Presupuesto | null;
   targetEstado: EstadoPresupuesto;
-  onConfirm: (presupuestoId: string, nuevoEstado: EstadoPresupuesto, motivoPerdida?: MotivoPerdida) => Promise<void>;
+  onConfirm: (presupuestoId: string, nuevoEstado: EstadoPresupuesto, motivoPerdida?: MotivoPerdida, fechaVenta?: string) => Promise<void>;
 }
 
 const MOTIVOS: MotivoPerdida[] = [
@@ -28,6 +28,7 @@ export const DealClosureModal: React.FC<DealClosureModalProps> = ({
   onConfirm,
 }) => {
   const [selectedMotivo, setSelectedMotivo] = useState<MotivoPerdida>('Precio alto');
+  const [fechaVenta, setFechaVenta] = useState<string>(new Date().toISOString().split('T')[0]);
   const [loading, setLoading] = useState(false);
 
   if (!isOpen || !presupuesto) return null;
@@ -50,7 +51,8 @@ export const DealClosureModal: React.FC<DealClosureModalProps> = ({
       await onConfirm(
         presupuesto.id,
         targetEstado,
-        !isGanado ? selectedMotivo : undefined
+        !isGanado ? selectedMotivo : undefined,
+        isGanado ? (fechaVenta.includes('T') ? fechaVenta : `${fechaVenta}T12:00:00Z`) : undefined
       );
 
       onClose();
@@ -91,6 +93,18 @@ export const DealClosureModal: React.FC<DealClosureModalProps> = ({
         {/* Content body */}
         {isGanado ? (
           <div className="space-y-4">
+            <div className="space-y-1.5">
+              <label className="block text-xs font-semibold text-slate-300">
+                Fecha Efectiva de Venta (Editable para ventas pasadas):
+              </label>
+              <input
+                type="date"
+                value={fechaVenta}
+                onChange={(e) => setFechaVenta(e.target.value)}
+                className="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-white font-mono text-xs focus:outline-none focus:border-cyan-500"
+              />
+            </div>
+
             <div className="p-4 rounded-xl bg-emerald-950/40 border border-emerald-500/30 text-xs text-emerald-200 space-y-2">
               <div className="font-semibold text-emerald-400 flex items-center gap-1.5">
                 <ShieldCheck className="w-4 h-4" />
@@ -98,7 +112,7 @@ export const DealClosureModal: React.FC<DealClosureModalProps> = ({
               </div>
               <ul className="list-disc list-inside space-y-1.5 text-slate-300">
                 <li>
-                  El vehículo <span className="font-bold text-white">{presupuesto.vehiculo?.marca} {presupuesto.vehiculo?.modelo}</span> pasará a estado <span className="text-emerald-400 font-bold">'vendido'</span> en inventario.
+                  El vehículo <span className="font-bold text-white">{presupuesto.vehiculo?.marca} {presupuesto.vehiculo?.modelo}</span> pasará a estado <span className="text-emerald-400 font-bold">'vendido'</span> en inventario con fecha <span className="font-mono text-emerald-300">{fechaVenta}</span>.
                 </li>
                 {presupuesto.permuta ? (
                   <li>

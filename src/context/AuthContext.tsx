@@ -1,63 +1,27 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { UserRole, PerfilUsuario, Permission, ROLE_PERMISSIONS } from '../types/auth';
+import { dataService } from '../services/dataService';
 
 interface AuthContextType {
   currentUser: PerfilUsuario;
   currentRole: UserRole;
+  isAuthenticated: boolean;
+  login: (usuario: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  logout: () => void;
   setRole: (role: UserRole) => void;
   can: (permission: Permission) => boolean;
   usuarios: PerfilUsuario[];
-  addUsuario: (usuario: Omit<PerfilUsuario, 'id' | 'created_at'>) => void;
-  updateUsuario: (id: string, data: Partial<PerfilUsuario>) => void;
-  toggleUsuarioActivo: (id: string) => void;
+  addUsuario: (usuario: Omit<PerfilUsuario, 'id' | 'created_at'> & { usuario?: string; password_hash?: string }) => Promise<void>;
+  updateUsuario: (id: string, data: Partial<PerfilUsuario>) => Promise<void>;
+  toggleUsuarioActivo: (id: string) => Promise<void>;
+  resetUserPassword: (id: string, newPassword?: string) => Promise<boolean>;
+  refreshUsuarios: () => Promise<void>;
 }
-
-const DEFAULT_USERS: PerfilUsuario[] = [
-  {
-    id: 'usr-admin-1',
-    nombre: 'Clemente Suárez',
-    email: 'clemente@autocrm.com',
-    rol: 'admin',
-    activo: true,
-    telefono: '+54 9 11 4444-5555',
-    created_at: '2026-01-10T10:00:00Z',
-  },
-  {
-    id: 'usr-vend-1',
-    nombre: 'Lucas Rodríguez',
-    email: 'lucas.ventas@autocrm.com',
-    rol: 'vendedor',
-    activo: true,
-    telefono: '+54 9 11 2233-4455',
-    created_at: '2026-02-01T12:00:00Z',
-  },
-  {
-    id: 'usr-vend-2',
-    nombre: 'Sofía Martínez',
-    email: 'sofia.ventas@autocrm.com',
-    rol: 'vendedor',
-    activo: true,
-    telefono: '+54 9 11 3344-5566',
-    created_at: '2026-02-15T14:30:00Z',
-  },
-  {
-    id: 'usr-super-1',
-    nombre: 'Dev Team / Soporte',
-    email: 'dev@autocrm-pro.io',
-    rol: 'superadmin',
-    activo: true,
-    telefono: '+54 9 11 9999-0000',
-    created_at: '2025-12-01T08:00:00Z',
-  },
-];
 
 export const STORAGE_ROLE_KEY = 'autocrm_current_role_mvp3';
 export const STORAGE_USERS_KEY = 'autocrm_usuarios_list_mvp3';
+export const STORAGE_SESSION_KEY = 'autocrm_session_user_mvp3';
 
-/**
- * Función utilitaria global para obtener de forma síncrona el rol activo
- * Permite a dataService.ts u otros servicios verificar el rol sin depender del ciclo de React.
- */
 export const getActiveRoleSync = (): UserRole => {
   try {
     const saved = localStorage.getItem(STORAGE_ROLE_KEY) as UserRole;
@@ -73,43 +37,68 @@ export const getActiveRoleSync = (): UserRole => {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [usuarios, setUsuarios] = useState<PerfilUsuario[]>(() => {
+  const [usuarios, setUsuarios] = useState<PerfilUsuario[]>([]);
+  const [sessionUser, setSessionUser] = useState<PerfilUsuario | null>(() => {
     try {
-      const saved = localStorage.getItem(STORAGE_USERS_KEY);
-      if (saved) {
-        return JSON.parse(saved);
-      }
+      const saved = localStorage.getItem(STORAGE_SESSION_KEY);
+      if (saved) return JSON.parse(saved);
     } catch (e) {
-      console.error('Error al cargar usuarios iniciales:', e);
+      console.error('Error al leer sesión de usuario:', e);
     }
-    return DEFAULT_USERS;
+    return null;
   });
 
-  const [currentRole, setCurrentRole] = useState<UserRole>(() => getActiveRoleSync());
+  const [currentRole, setCurrentRole] = useState<UserRole>(() => {
+    if (sessionUser) return sessionUser.rol;
+    return getActiveRoleSync();
+  });
 
-  // Guardar usuarios en storage al cambiar
-  useEffect(() => {
+  const refreshUsuarios = useCallback(async () => {
     try {
-      localStorage.setItem(STORAGE_USERS_KEY, JSON.stringify(usuarios));
-    } catch (e) {
-      console.error('Error al guardar usuarios en storage:', e);
+      const list = await dataService.getUsuarios();
+      if (list && list.length > 0) {
+        setUsuarios(list);
+        localStorage.setItem(STORAGE_USERS_KEY, JSON.stringify(list));
+      }
+    } catch (err) {
+      console.error('Error al actualizar usuarios desde SQLite:', err);
     }
-  }, [usuarios]);
+  }, []);
 
-  // Modificar rol activo de forma reactiva y persistente
+  useEffect(() => {
+    refreshUsuarios();
+  }, [refreshUsuarios]);
+
+  const login = async (usuario: string, password: string): Promise<{ success: boolean; error?: string }> => {
+    const res = await dataService.loginUser(usuario, password);
+    if (res.success && res.user) {
+      setSessionUser(res.user);
+      setCurrentRole(res.user.rol);
+      localStorage.setItem(STORAGE_SESSION_KEY, JSON.stringify(res.user));
+      localStorage.setItem(STORAGE_ROLE_KEY, res.user.rol);
+      window.dispatchEvent(new Event('autocrm_role_changed'));
+      return { success: true };
+    }
+    return { success: false, error: res.error || 'Credenciales inválidas' };
+  };
+
+  const logout = useCallback(() => {
+    setSessionUser(null);
+    localStorage.removeItem(STORAGE_SESSION_KEY);
+    window.dispatchEvent(new Event('autocrm_role_changed'));
+  }, []);
+
   const handleSetRole = useCallback((role: UserRole) => {
     setCurrentRole(role);
     try {
       localStorage.setItem(STORAGE_ROLE_KEY, role);
-      // Disparar evento para que componentes o servicios externos se sincronicen
       window.dispatchEvent(new Event('autocrm_role_changed'));
     } catch (e) {
       console.error('Error al guardar rol en storage:', e);
     }
   }, []);
 
-  // Calcular el usuario activo según el rol actual
-  const currentUser: PerfilUsuario = usuarios.find((u) => u.rol === currentRole && u.activo) || {
+  const currentUser: PerfilUsuario = sessionUser || usuarios.find((u) => u.rol === currentRole && u.activo) || {
     id: `usr-${currentRole}-default`,
     nombre: currentRole === 'admin' ? 'Dueño / Admin' : currentRole === 'superadmin' ? 'Desarrollador / SuperAdmin' : 'Vendedor Comercial',
     email: `${currentRole}@agencia.com`,
@@ -118,44 +107,52 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     created_at: new Date().toISOString(),
   };
 
-  // Verificador estricto de permisos según la Matriz RBAC
   const can = useCallback((permission: Permission): boolean => {
-    const allowed = ROLE_PERMISSIONS[currentRole] || [];
+    const roleToTest = sessionUser ? sessionUser.rol : currentRole;
+    const allowed = ROLE_PERMISSIONS[roleToTest] || [];
     return allowed.includes(permission);
-  }, [currentRole]);
+  }, [currentRole, sessionUser]);
 
-  const addUsuario = (data: Omit<PerfilUsuario, 'id' | 'created_at'>) => {
-    const nuevo: PerfilUsuario = {
-      ...data,
-      id: `usr-${Date.now()}`,
-      created_at: new Date().toISOString(),
-    };
-    setUsuarios((prev) => [...prev, nuevo]);
+  const addUsuario = async (data: Omit<PerfilUsuario, 'id' | 'created_at'> & { usuario?: string; password_hash?: string }) => {
+    const created = await dataService.createUsuario(data);
+    setUsuarios((prev) => [...prev, created]);
+    await refreshUsuarios();
   };
 
-  const updateUsuario = (id: string, data: Partial<PerfilUsuario>) => {
-    setUsuarios((prev) =>
-      prev.map((u) => (u.id === id ? { ...u, ...data } : u))
-    );
+  const updateUsuario = async (id: string, data: Partial<PerfilUsuario>) => {
+    const updated = await dataService.updateUsuario(id, data);
+    setUsuarios((prev) => prev.map((u) => (u.id === id ? { ...u, ...updated } : u)));
+    await refreshUsuarios();
   };
 
-  const toggleUsuarioActivo = (id: string) => {
+  const toggleUsuarioActivo = async (id: string) => {
+    const newStatus = await dataService.toggleUsuarioActivo(id);
     setUsuarios((prev) =>
-      prev.map((u) => (u.id === id ? { ...u, activo: !u.activo } : u))
+      prev.map((u) => (u.id === id ? { ...u, activo: newStatus } : u))
     );
+    await refreshUsuarios();
+  };
+
+  const resetUserPassword = async (id: string, newPassword?: string): Promise<boolean> => {
+    return await dataService.resetUserPassword(id, newPassword);
   };
 
   return (
     <AuthContext.Provider
       value={{
         currentUser,
-        currentRole,
+        currentRole: sessionUser ? sessionUser.rol : currentRole,
+        isAuthenticated: !!sessionUser,
+        login,
+        logout,
         setRole: handleSetRole,
         can,
         usuarios,
         addUsuario,
         updateUsuario,
         toggleUsuarioActivo,
+        resetUserPassword,
+        refreshUsuarios,
       }}
     >
       {children}
