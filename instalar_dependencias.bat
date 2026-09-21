@@ -1,70 +1,59 @@
 @echo off
-chcp 65001 > nul
-title AutoCRM PRO MVP 3 - Asistente de Instalación Autónoma
+title AutoCRM PRO MVP 3 - Instalacion de Dependencias
 
 echo ==============================================================================
-echo              AUTOCRM PRO MVP 3 - INSTALACIÓN DE DEPENDENCIAS
+echo              AUTOCRM PRO MVP 3 - INSTALACION DE DEPENDENCIAS
 echo ==============================================================================
 echo.
 
-:: 1. Verificación de Node.js
-echo [1/4] Comprobando la presencia de Node.js en el sistema...
 where node >nul 2>nul
-if %ERRORLEVEL% NEQ 0 (
-    echo.
-    echo ❌ ATENCIÓN: Node.js no se encuentra instalado en este equipo.
-    echo.
-    echo Se abrirá el navegador para descargar la versión oficial Node.js LTS.
-    echo Por favor instálelo y luego vuelva a ejecutar este archivo script.
-    echo.
-    start https://nodejs.org/
-    pause
-    exit /b 1
-)
+if %ERRORLEVEL% EQU 0 goto :NODE_OK
 
-for /f "tokens=*" %%v in ('node -v') do set NODE_VERSION=%%v
-echo ✅ Node.js detectado exitosamente: %NODE_VERSION%
 echo.
+echo ATENCION: Node.js no se encuentra instalado en este equipo.
+echo Se abrira el navegador para descargar Node.js LTS.
+echo Por favor instalelo y vuelva a ejecutar este archivo.
+echo.
+start https://nodejs.org/
+pause
+exit /b 1
 
-:: 2. Instalación de Librerías y Módulos Nativo (better-sqlite3)
-echo [2/4] Instalando dependencias de Node.js y compilando binarios nativos...
+:NODE_OK
+echo [1/4] Node.js detectado correctamente.
+echo [2/4] Instalando dependencias y compilando SQLite...
 call npm install
-if %ERRORLEVEL% NEQ 0 (
-    echo.
-    echo ❌ ERROR: Ocurrió un fallo durante la instalación de paquetes de npm.
-    echo Revisa tu conexión a internet o los permisos de Windows.
-    pause
-    exit /b 1
-)
-echo ✅ Dependencias instaladas correctamente.
-echo.
+if %ERRORLEVEL% NEQ 0 goto :NPM_ERROR
 
-:: 3. Compilación del Frontend (Vite Dist)
-echo [3/4] Generando compilación de producción optimizada (Vite Build)...
+echo [3/4] Generando compilacion de produccion...
 call npm run build
-if %ERRORLEVEL% NEQ 0 (
-    echo.
-    echo ❌ ERROR: Falló la compilación del bundle de producción.
-    pause
-    exit /b 1
-)
-echo ✅ Frontend compilado y listo en directorio /dist.
-echo.
+if %ERRORLEVEL% NEQ 0 goto :BUILD_ERROR
 
-:: 4. Inicialización y Verificación de Base de Datos SQLite WAL
-echo [4/4] Inicializando y verificando base de datos SQLite (crm_local.db)...
-node --input-type=module -e "import './server/db.js'; console.log('[SQLite] Conexión y tablas creadas exitosamente.');"
-if %ERRORLEVEL% NEQ 0 (
-    echo.
-    echo ❌ ERROR: No se pudo verificar la base de datos local SQLite.
-    pause
-    exit /b 1
-)
-echo.
+echo [4/4] Verificando base de datos SQLite...
+node --input-type=module -e "import './server/db.js'; console.log('[SQLite] Base de datos verificada correctamente.');"
+if %ERRORLEVEL% NEQ 0 goto :DB_ERROR
 
+echo.
 echo ==============================================================================
-echo  🎉 ¡INSTALACIÓN COMPLETADA CON ÉXITO!
-echo  Puedes iniciar el CRM en cualquier momento ejecutando "iniciar_crm.bat"
+echo  INSTALACION COMPLETADA CON EXITO.
+echo  Puedes iniciar el CRM ejecutando "iniciar_crm.bat"
 echo ==============================================================================
 echo.
 pause
+goto :END
+
+:NPM_ERROR
+echo Error al instalar dependencias de npm.
+pause
+exit /b 1
+
+:BUILD_ERROR
+echo Error al compilar el proyecto Vite.
+pause
+exit /b 1
+
+:DB_ERROR
+echo Error al verificar la base de datos SQLite.
+pause
+exit /b 1
+
+:END
