@@ -157,12 +157,14 @@ router.get('/clientes', (req, res) => {
 
 router.post('/clientes', (req, res) => {
   try {
-    const c = req.body;
+    console.log('[API POST /clientes]', req.body);
+    const c = req.body || {};
     const id = c.id || ('c_' + Date.now());
     const created_at = c.created_at || new Date().toISOString();
     const rawDoc = String(c.numero_documento || c.dni || '').trim();
     const numero_documento = rawDoc.replace(/[^0-9A-Za-z]/g, '');
-    const telefono = String(c.telefono || '').trim();
+    const telefono = String(c.telefono || '').trim() || 'Sin teléfono';
+    const nombre = String(c.nombre || 'Cliente sin nombre').trim();
 
     const stmt = db.prepare(`
       INSERT INTO clientes (
@@ -193,8 +195,8 @@ router.post('/clientes', (req, res) => {
     `);
 
     stmt.run(
-      id, c.nombre || '', c.apellido || null, numero_documento, c.tipo_documento || 'DNI',
-      c.telefono || '', c.email || null, c.domicilio_calle || null, c.domicilio_numero || null,
+      id, nombre, c.apellido || null, numero_documento, c.tipo_documento || 'DNI',
+      telefono, c.email || null, c.domicilio_calle || null, c.domicilio_numero || null,
       c.localidad || null, c.provincia || null, c.codigo_postal || null,
       c.compro_credito ? 1 : 0, c.monto_credito || 0, c.deja_auto_permuta ? 1 : 0,
       c.auto_permuta_detalle || null, c.tipo_cliente || 'Prospecto', c.notas || null,
@@ -202,8 +204,10 @@ router.post('/clientes', (req, res) => {
     );
 
     const created = db.prepare('SELECT * FROM clientes WHERE id = ?').get(id);
+    res.setHeader('Content-Type', 'application/json');
     res.status(201).json(formatCliente(created));
   } catch (err) {
+    console.error('[API POST /clientes Error]:', err);
     res.status(500).json({ error: err.message });
   }
 });

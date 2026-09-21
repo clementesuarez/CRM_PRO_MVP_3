@@ -25,19 +25,34 @@ import { parseDniPdf417, DniParsedResult } from '../utils/dniParser';
 const catalogoSearchCache = new Map<string, { timestamp: number; data: CatalogoVehiculoItem[] }>();
 const CACHE_TTL_MS = 5 * 60 * 1000;
 
-async function apiRequest<T>(url: string, options?: RequestInit): Promise<T | null> {
+export const getApiBaseUrl = (): string => {
+  if (typeof window === 'undefined') return '/api';
+  const { protocol, hostname, port } = window.location;
+  if (port === '5173') {
+    return `${protocol}//${hostname}:5000/api`;
+  }
+  return `${protocol}//${hostname}${port ? ':' + port : ''}/api`;
+};
+
+async function apiRequest<T>(endpoint: string, options?: RequestInit): Promise<T | null> {
   try {
     const activeRole = getActiveRoleSync();
     let activeUserId = '';
     try {
-      const saved = localStorage.getItem('autocrm_session_user_mvp3');
+      const saved = sessionStorage.getItem('autocrm_session_user_mvp3') || localStorage.getItem('autocrm_session_user_mvp3');
       if (saved) {
         const parsed = JSON.parse(saved);
         if (parsed?.id) activeUserId = parsed.id;
       }
     } catch (e) {}
 
-    const res = await fetch(url, {
+    const apiBase = getApiBaseUrl();
+    const cleanEndpoint = endpoint.startsWith('/api') ? endpoint.replace(/^\/api/, '') : endpoint;
+    const fullUrl = endpoint.startsWith('http') ? endpoint : `${apiBase}${cleanEndpoint.startsWith('/') ? '' : '/'}${cleanEndpoint}`;
+
+    console.log(`[dataService] Petición API -> ${fullUrl}`);
+
+    const res = await fetch(fullUrl, {
       headers: {
         'Content-Type': 'application/json',
         'x-user-role': activeRole,
@@ -46,10 +61,14 @@ async function apiRequest<T>(url: string, options?: RequestInit): Promise<T | nu
       },
       ...options,
     });
-    if (!res.ok) return null;
+    if (!res.ok) {
+      const errorText = await res.text();
+      console.error(`[dataService] Error HTTP ${res.status} en ${fullUrl}:`, errorText);
+      return null;
+    }
     return await res.json();
   } catch (err) {
-    console.warn(`[dataService] Fallo en API request ${url}, usando fallback local:`, err);
+    console.warn(`[dataService] Fallo en API request ${endpoint}, usando fallback local:`, err);
     return null;
   }
 }
