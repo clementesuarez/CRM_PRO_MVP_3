@@ -517,6 +517,8 @@ function ensureDefaultSeedUsers() {
     const superExists = db.prepare("SELECT * FROM usuarios WHERE usuario = 'superadmin'").get();
     if (!superExists) {
       insertOrUpdate.run('usr-super-default', 'Soporte SuperAdmin', 'superadmin', bcrypt.hashSync('superadmin123', 10), 'superadmin', 'soporte@concesionaria.com', '+54 9 11 9999-0000', new Date().toISOString());
+    } else if (!superExists.activo) {
+      db.prepare("UPDATE usuarios SET activo = 1 WHERE usuario = 'superadmin'").run();
     }
 
     const vendExists = db.prepare("SELECT * FROM usuarios WHERE usuario = 'vendedor'").get();
