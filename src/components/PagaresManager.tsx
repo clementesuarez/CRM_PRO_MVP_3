@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { PrestamoPagare, CuotaPagare, ReclamoCobranza, Cliente, EstadoCuota, TipoGestionCobranza, ResultadoGestionCobranza } from '../types/crm';
 import { dataService } from '../services/dataService';
-import { 
-  getWhatsAppConfig, 
-  saveWhatsAppConfig, 
-  formatWhatsAppMessage, 
-  sendWhatsAppMessageAPI, 
+import {
+  getWhatsAppConfig,
+  saveWhatsAppConfig,
+  formatWhatsAppMessage,
+  sendWhatsAppMessageAPI,
   buildWhatsAppWebUrl,
   WhatsAppConfig,
   DEFAULT_WHATSAPP_TEMPLATE,
@@ -13,19 +13,19 @@ import {
   DEFAULT_GENERAL_WHATSAPP_TEMPLATE,
   getRecommendedTemplate
 } from '../services/whatsappService';
-import { 
-  FileText, 
-  DollarSign, 
-  Calendar, 
-  Clock, 
-  AlertTriangle, 
-  CheckCircle2, 
-  PhoneCall, 
-  Plus, 
-  Search, 
-  TrendingUp, 
-  ShieldAlert, 
-  UserCheck, 
+import {
+  FileText,
+  DollarSign,
+  Calendar,
+  Clock,
+  AlertTriangle,
+  CheckCircle2,
+  PhoneCall,
+  Plus,
+  Search,
+  TrendingUp,
+  ShieldAlert,
+  UserCheck,
   ArrowUpRight,
   Filter,
   FileCheck,
@@ -186,12 +186,22 @@ export const PagaresManager: React.FC = () => {
   // Helper to determine if a cuota is overdue/past-due without relying on manually updated string in DB
   const isCuotaOverdue = (c: CuotaPagare): boolean => {
     if (!c || c.estado === 'Cobrado') return false;
-    if (c.estado === 'Vencido') return true;
     if (!c.fecha_vencimiento || typeof c.fecha_vencimiento !== 'string') return false;
     const cleanDateStr = String(c.fecha_vencimiento).split('T')[0];
     const dueDate = new Date(cleanDateStr + 'T23:59:59');
     const today = new Date();
     return dueDate < today;
+  };
+
+  const getDiasMora = (c: CuotaPagare): number => {
+    if (!c || c.estado === 'Cobrado' || !c.fecha_vencimiento) return 0;
+    const cleanDateStr = String(c.fecha_vencimiento).split('T')[0];
+    const dueDate = new Date(cleanDateStr + 'T00:00:00');
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    if (dueDate >= today) return 0;
+    const diffTime = today.getTime() - dueDate.getTime();
+    return Math.floor(diffTime / (1000 * 60 * 60 * 24));
   };
 
   const isUpcomingCuota = (c: CuotaPagare): boolean => {
@@ -205,14 +215,50 @@ export const PagaresManager: React.FC = () => {
     return diffDays >= 0 && diffDays <= 7;
   };
 
-  // Financial Metrics breakdown
-  const totalPrestadoARS = prestamos.filter(p => p.moneda === 'ARS').reduce((sum, p) => sum + p.monto_total_prestado, 0);
-  const totalCobradoARS = cuotas.filter(c => c.moneda === 'ARS' && c.estado === 'Cobrado').reduce((sum, c) => sum + (c.monto_pagado || c.monto_cuota), 0);
-  const totalPendienteARS = totalPrestadoARS - totalCobradoARS;
+  const sortCuotasByPriority = (cuotasList: CuotaPagare[]): CuotaPagare[] => {
+    return [...cuotasList].sort((a, b) => {
+      const getPriority = (c: CuotaPagare) => {
+        if (c.estado === 'Cobrado') return 4;
+        if (isCuotaOverdue(c)) return 1;
+        if (isUpcomingCuota(c)) return 2;
+        return 3;
+      };
 
-  const totalPrestadoUSD = prestamos.filter(p => p.moneda === 'USD').reduce((sum, p) => sum + p.monto_total_prestado, 0);
-  const totalCobradoUSD = cuotas.filter(c => c.moneda === 'USD' && c.estado === 'Cobrado').reduce((sum, c) => sum + (c.monto_pagado || c.monto_cuota), 0);
-  const totalPendienteUSD = totalPrestadoUSD - totalCobradoUSD;
+      const prioA = getPriority(a);
+      const prioB = getPriority(b);
+
+      if (prioA !== prioB) {
+        return prioA - prioB;
+      }
+
+      const numA = a.numero_cuota || (a as any).nro_cuota || 0;
+      const numB = b.numero_cuota || (b as any).nro_cuota || 0;
+      return numA - numB;
+    });
+  };
+
+  // Financial Metrics breakdown
+  const totalPrestadoARS = cuotas
+    .filter(c => (c.moneda || 'USD') === 'ARS')
+    .reduce((sum, c) => sum + (Number(c.monto_cuota) || 0), 0) ||
+    prestamos.filter(p => p.moneda === 'ARS').reduce((sum, p) => sum + (Number(p.monto_total_prestado) || 0), 0);
+
+  const totalCobradoARS = cuotas
+    .filter(c => (c.moneda || 'USD') === 'ARS' && c.estado === 'Cobrado')
+    .reduce((sum, c) => sum + (Number(c.monto_pagado || c.monto_cuota) || 0), 0);
+
+  const totalPendienteARS = Math.max(0, totalPrestadoARS - totalCobradoARS);
+
+  const totalPrestadoUSD = cuotas
+    .filter(c => (c.moneda || 'USD') === 'USD')
+    .reduce((sum, c) => sum + (Number(c.monto_cuota) || 0), 0) ||
+    prestamos.filter(p => p.moneda === 'USD').reduce((sum, p) => sum + (Number(p.monto_total_prestado) || 0), 0);
+
+  const totalCobradoUSD = cuotas
+    .filter(c => (c.moneda || 'USD') === 'USD' && c.estado === 'Cobrado')
+    .reduce((sum, c) => sum + (Number(c.monto_pagado || c.monto_cuota) || 0), 0);
+
+  const totalPendienteUSD = Math.max(0, totalPrestadoUSD - totalCobradoUSD);
 
   const cuotasVencidasCount = cuotas.filter(c => isCuotaOverdue(c)).length;
   const morosidadPorcentaje = cuotas.length > 0 ? Math.round((cuotasVencidasCount / cuotas.length) * 100) : 0;
@@ -345,7 +391,7 @@ export const PagaresManager: React.FC = () => {
 
   // Toggle selection for mass WhatsApp dispatch
   const toggleSelectCuota = (id: string) => {
-    setSelectedCuotaIds(prev => 
+    setSelectedCuotaIds(prev =>
       prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]
     );
   };
@@ -458,15 +504,25 @@ export const PagaresManager: React.FC = () => {
       return;
     }
 
+    let finalEstado = editForm.estado;
+    if (finalEstado !== 'Cobrado') {
+      const cleanDateStr = String(editForm.fecha_vencimiento).split('T')[0];
+      const dueDate = new Date(cleanDateStr + 'T23:59:59');
+      const today = new Date();
+      if (dueDate >= today && finalEstado === 'Vencido') {
+        finalEstado = 'Pendiente';
+      }
+    }
+
     try {
       await dataService.updateCuotaDetails(selectedCuotaForEdit.id, {
         fecha_vencimiento: editForm.fecha_vencimiento,
         numero_pagare: editForm.numero_pagare,
         monto_cuota: Number(editForm.monto_cuota),
-        estado: editForm.estado,
+        estado: finalEstado,
         observaciones: editForm.observaciones,
         comprobante_pago: editForm.comprobante_pago,
-        fecha_pago: editForm.fecha_pago || (editForm.estado === 'Cobrado' ? new Date().toISOString() : undefined),
+        fecha_pago: editForm.fecha_pago || (finalEstado === 'Cobrado' ? new Date().toISOString() : undefined),
         monto_pagado: editForm.monto_pagado ? Number(editForm.monto_pagado) : Number(editForm.monto_cuota)
       });
       setSelectedCuotaForEdit(null);
@@ -547,9 +603,11 @@ export const PagaresManager: React.FC = () => {
       );
     }
     if (isCuotaOverdue(cuota)) {
+      const mora = getDiasMora(cuota);
       return (
         <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-red-500/20 text-red-300 border border-red-500/30 animate-pulse">
-          <AlertTriangle className="w-3.5 h-3.5 text-red-400" /> Vencido en Mora
+          <AlertTriangle className="w-3.5 h-3.5 text-red-400" />
+          ⚠️ Vencido {mora > 0 ? `(+${mora} ${mora === 1 ? 'día' : 'días'} de mora)` : 'en Mora'}
         </span>
       );
     }
@@ -593,7 +651,7 @@ export const PagaresManager: React.FC = () => {
 
     const groups: ClientPagareGroup[] = [];
     map.forEach((cList, cid) => {
-      cList.sort((a, b) => a.numero_cuota - b.numero_cuota);
+      const sortedCuotas = sortCuotasByPriority(cList);
       const clientObj = cList[0]?.cliente || clientes.find(cli => cli.id === cid) || null;
       const totalCuotas = cList.length;
       const cuotasCobradas = cList.filter(c => c.estado === 'Cobrado').length;
@@ -629,7 +687,7 @@ export const PagaresManager: React.FC = () => {
       groups.push({
         cliente_id: cid,
         cliente: clientObj,
-        cuotas: cList,
+        cuotas: sortedCuotas,
         totalCuotas,
         cuotasCobradas,
         cuotasVencidas,
@@ -778,33 +836,30 @@ export const PagaresManager: React.FC = () => {
       <div className="flex border-b border-slate-800 gap-4">
         <button
           onClick={() => setActiveTab('calendario')}
-          className={`pb-3 text-sm font-bold border-b-2 transition-all cursor-pointer flex items-center gap-2 ${
-            activeTab === 'calendario'
-              ? 'border-emerald-500 text-emerald-400'
-              : 'border-transparent text-slate-400 hover:text-white'
-          }`}
+          className={`pb-3 text-sm font-bold border-b-2 transition-all cursor-pointer flex items-center gap-2 ${activeTab === 'calendario'
+            ? 'border-emerald-500 text-emerald-400'
+            : 'border-transparent text-slate-400 hover:text-white'
+            }`}
         >
           <Calendar className="w-4 h-4" /> Cronograma de Pagarés ({cuotas.length})
         </button>
         <button
           onClick={() => setActiveTab('reclamos')}
-          className={`pb-3 text-sm font-bold border-b-2 transition-all cursor-pointer flex items-center gap-2 ${
-            activeTab === 'reclamos'
-              ? 'border-emerald-500 text-emerald-400'
-              : 'border-transparent text-slate-400 hover:text-white'
-          }`}
+          className={`pb-3 text-sm font-bold border-b-2 transition-all cursor-pointer flex items-center gap-2 ${activeTab === 'reclamos'
+            ? 'border-emerald-500 text-emerald-400'
+            : 'border-transparent text-slate-400 hover:text-white'
+            }`}
         >
           <PhoneCall className="w-4 h-4" /> Historial de Reclamos & Cobranza ({reclamos.length})
         </button>
         <button
           onClick={() => setActiveTab('nuevo')}
-          className={`pb-3 text-sm font-bold border-b-2 transition-all cursor-pointer flex items-center gap-2 ${
-            activeTab === 'nuevo'
-              ? 'border-emerald-500 text-emerald-400'
-              : 'border-transparent text-slate-400 hover:text-white'
-          }`}
+          className={`pb-3 text-sm font-bold border-b-2 transition-all cursor-pointer flex items-center gap-2 ${activeTab === 'nuevo'
+            ? 'border-emerald-500 text-emerald-400'
+            : 'border-transparent text-slate-400 hover:text-white'
+            }`}
         >
-          <Plus className="w-4 h-4" /> Nuevo Crédito Prendario
+          <Plus className="w-4 h-4" /> Nuevo crédito
         </button>
       </div>
 
@@ -861,11 +916,10 @@ export const PagaresManager: React.FC = () => {
                 type="button"
                 disabled={selectedCuotaIds.length === 0}
                 onClick={() => setIsMassWhatsAppOpen(true)}
-                className={`flex items-center gap-2 text-xs font-extrabold px-4 py-2.5 rounded-xl shadow-lg transition-all cursor-pointer ${
-                  selectedCuotaIds.length > 0
-                    ? 'bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white shadow-emerald-500/25 animate-pulse'
-                    : 'bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700 opacity-60'
-                }`}
+                className={`flex items-center gap-2 text-xs font-extrabold px-4 py-2.5 rounded-xl shadow-lg transition-all cursor-pointer ${selectedCuotaIds.length > 0
+                  ? 'bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white shadow-emerald-500/25 animate-pulse'
+                  : 'bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700 opacity-60'
+                  }`}
               >
                 <Send className="w-4 h-4" /> Enviar Recordatorios por WhatsApp ({selectedCuotaIds.length})
               </button>
@@ -903,11 +957,10 @@ export const PagaresManager: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setViewMode('agrupada')}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-bold transition-all cursor-pointer ${
-                    viewMode === 'agrupada'
-                      ? 'bg-emerald-600 text-white shadow-md'
-                      : 'text-slate-400 hover:text-white'
-                  }`}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-bold transition-all cursor-pointer ${viewMode === 'agrupada'
+                    ? 'bg-emerald-600 text-white shadow-md'
+                    : 'text-slate-400 hover:text-white'
+                    }`}
                   title="Vista Ordenada 1 Fila por Cliente"
                 >
                   <Users className="w-3.5 h-3.5" /> Vista Agrupada por Cliente
@@ -915,11 +968,10 @@ export const PagaresManager: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setViewMode('desglosada')}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-bold transition-all cursor-pointer ${
-                    viewMode === 'desglosada'
-                      ? 'bg-emerald-600 text-white shadow-md'
-                      : 'text-slate-400 hover:text-white'
-                  }`}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-bold transition-all cursor-pointer ${viewMode === 'desglosada'
+                    ? 'bg-emerald-600 text-white shadow-md'
+                    : 'text-slate-400 hover:text-white'
+                    }`}
                   title="Vista Desglosada (Todas las Cuotas)"
                 >
                   <List className="w-3.5 h-3.5" /> Lista Desglosada
@@ -932,11 +984,10 @@ export const PagaresManager: React.FC = () => {
                   <button
                     key={st}
                     onClick={() => setStatusFilter(st)}
-                    className={`px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${
-                      statusFilter === st
-                        ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-bold'
-                        : 'bg-slate-950 text-slate-400 hover:text-white border border-slate-800'
-                    }`}
+                    className={`px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${statusFilter === st
+                      ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-bold'
+                      : 'bg-slate-950 text-slate-400 hover:text-white border border-slate-800'
+                      }`}
                   >
                     {st}
                   </button>
@@ -981,9 +1032,8 @@ export const PagaresManager: React.FC = () => {
                             key={g.cliente_id}
                             onDoubleClick={() => handleOpenClientFicha(g.cliente_id)}
                             title="Doble clic para ver todo el listado de pagarés de este cliente"
-                            className={`hover:bg-slate-800/80 transition-colors cursor-pointer select-none ${
-                              g.tieneMora ? 'bg-red-950/20' : ''
-                            }`}
+                            className={`hover:bg-slate-800/80 transition-colors cursor-pointer select-none ${g.tieneMora ? 'bg-red-950/20' : ''
+                              }`}
                           >
                             <td className="py-4 px-4">
                               <div className="font-extrabold text-white text-base flex items-center gap-2">
@@ -1009,13 +1059,12 @@ export const PagaresManager: React.FC = () => {
                               </div>
                               <div className="w-full bg-slate-950 rounded-full h-2 overflow-hidden border border-slate-800">
                                 <div
-                                  className={`h-full transition-all rounded-full ${
-                                    porcentajeCobrado === 100
-                                      ? 'bg-emerald-500'
-                                      : g.tieneMora
+                                  className={`h-full transition-all rounded-full ${porcentajeCobrado === 100
+                                    ? 'bg-emerald-500'
+                                    : g.tieneMora
                                       ? 'bg-gradient-to-r from-red-500 to-amber-500'
                                       : 'bg-gradient-to-r from-emerald-500 to-teal-400'
-                                  }`}
+                                    }`}
                                   style={{ width: `${porcentajeCobrado}%` }}
                                 />
                               </div>
@@ -2048,21 +2097,19 @@ export const PagaresManager: React.FC = () => {
             <div className="flex border-b border-slate-800 bg-slate-900/80 px-5 shrink-0">
               <button
                 onClick={() => setActiveMassTab('envio')}
-                className={`px-4 py-3 text-xs font-bold flex items-center gap-2 border-b-2 transition cursor-pointer ${
-                  activeMassTab === 'envio'
-                    ? 'border-emerald-500 text-emerald-400 bg-emerald-500/5'
-                    : 'border-transparent text-slate-400 hover:text-white'
-                }`}
+                className={`px-4 py-3 text-xs font-bold flex items-center gap-2 border-b-2 transition cursor-pointer ${activeMassTab === 'envio'
+                  ? 'border-emerald-500 text-emerald-400 bg-emerald-500/5'
+                  : 'border-transparent text-slate-400 hover:text-white'
+                  }`}
               >
                 <Send className="w-4 h-4" /> 🚀 Envío Masivo ({selectedCuotasObjects.length})
               </button>
               <button
                 onClick={() => setActiveMassTab('config')}
-                className={`px-4 py-3 text-xs font-bold flex items-center gap-2 border-b-2 transition cursor-pointer ${
-                  activeMassTab === 'config'
-                    ? 'border-emerald-500 text-emerald-400 bg-emerald-500/5'
-                    : 'border-transparent text-slate-400 hover:text-white'
-                }`}
+                className={`px-4 py-3 text-xs font-bold flex items-center gap-2 border-b-2 transition cursor-pointer ${activeMassTab === 'config'
+                  ? 'border-emerald-500 text-emerald-400 bg-emerald-500/5'
+                  : 'border-transparent text-slate-400 hover:text-white'
+                  }`}
               >
                 <Settings className="w-4 h-4" /> ⚙️ Configurar API Gateway
               </button>
@@ -2382,11 +2429,10 @@ export const PagaresManager: React.FC = () => {
                       <button
                         type="button"
                         onClick={() => setWhatsAppConfigState({ ...whatsAppConfig, provider: 'meta_cloud' })}
-                        className={`p-3.5 rounded-xl border text-left cursor-pointer transition ${
-                          whatsAppConfig.provider === 'meta_cloud'
-                            ? 'bg-emerald-950/40 border-emerald-500 text-white'
-                            : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700'
-                        }`}
+                        className={`p-3.5 rounded-xl border text-left cursor-pointer transition ${whatsAppConfig.provider === 'meta_cloud'
+                          ? 'bg-emerald-950/40 border-emerald-500 text-white'
+                          : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700'
+                          }`}
                       >
                         <Radio className={`w-4 h-4 mb-1 ${whatsAppConfig.provider === 'meta_cloud' ? 'text-emerald-400' : 'text-slate-500'}`} />
                         <div className="font-bold text-xs">Meta Cloud API</div>
@@ -2396,11 +2442,10 @@ export const PagaresManager: React.FC = () => {
                       <button
                         type="button"
                         onClick={() => setWhatsAppConfigState({ ...whatsAppConfig, provider: 'ultramsg' })}
-                        className={`p-3.5 rounded-xl border text-left cursor-pointer transition ${
-                          whatsAppConfig.provider === 'ultramsg'
-                            ? 'bg-emerald-950/40 border-emerald-500 text-white'
-                            : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700'
-                        }`}
+                        className={`p-3.5 rounded-xl border text-left cursor-pointer transition ${whatsAppConfig.provider === 'ultramsg'
+                          ? 'bg-emerald-950/40 border-emerald-500 text-white'
+                          : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700'
+                          }`}
                       >
                         <Radio className={`w-4 h-4 mb-1 ${whatsAppConfig.provider === 'ultramsg' ? 'text-emerald-400' : 'text-slate-500'}`} />
                         <div className="font-bold text-xs">UltraMsg Gateway</div>
@@ -2410,11 +2455,10 @@ export const PagaresManager: React.FC = () => {
                       <button
                         type="button"
                         onClick={() => setWhatsAppConfigState({ ...whatsAppConfig, provider: 'simulation' })}
-                        className={`p-3.5 rounded-xl border text-left cursor-pointer transition ${
-                          whatsAppConfig.provider === 'simulation'
-                            ? 'bg-emerald-950/40 border-emerald-500 text-white'
-                            : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700'
-                        }`}
+                        className={`p-3.5 rounded-xl border text-left cursor-pointer transition ${whatsAppConfig.provider === 'simulation'
+                          ? 'bg-emerald-950/40 border-emerald-500 text-white'
+                          : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700'
+                          }`}
                       >
                         <Radio className={`w-4 h-4 mb-1 ${whatsAppConfig.provider === 'simulation' ? 'text-emerald-400' : 'text-slate-500'}`} />
                         <div className="font-bold text-xs">Modo Simulación / Web</div>
@@ -2516,7 +2560,7 @@ export const PagaresManager: React.FC = () => {
                     Redactar Mensaje de WhatsApp
                   </h3>
                   <p className="text-xs text-slate-400">
-                    Destinatario: <strong className="text-emerald-400">{cuotaForIndividualWsp.cliente ? `${cuotaForIndividualWsp.cliente.nombre} ${cuotaForIndividualWsp.cliente.apellido || ''}` : 'Cliente'}</strong> 
+                    Destinatario: <strong className="text-emerald-400">{cuotaForIndividualWsp.cliente ? `${cuotaForIndividualWsp.cliente.nombre} ${cuotaForIndividualWsp.cliente.apellido || ''}` : 'Cliente'}</strong>
                     {cuotaForIndividualWsp.cliente?.telefono ? ` (${cuotaForIndividualWsp.cliente.telefono})` : ' (Sin Teléfono)'}
                   </p>
                 </div>
@@ -2561,33 +2605,30 @@ export const PagaresManager: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => handleSelectIndividualTemplate('vencido')}
-                    className={`py-2 px-3 rounded-xl font-bold border text-xs transition cursor-pointer flex items-center justify-center gap-1.5 ${
-                      individualTemplateType === 'vencido'
-                        ? 'bg-red-500/20 border-red-500 text-red-300 shadow-md'
-                        : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700'
-                    }`}
+                    className={`py-2 px-3 rounded-xl font-bold border text-xs transition cursor-pointer flex items-center justify-center gap-1.5 ${individualTemplateType === 'vencido'
+                      ? 'bg-red-500/20 border-red-500 text-red-300 shadow-md'
+                      : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700'
+                      }`}
                   >
                     🔴 Reclamo Mora
                   </button>
                   <button
                     type="button"
                     onClick={() => handleSelectIndividualTemplate('proximo')}
-                    className={`py-2 px-3 rounded-xl font-bold border text-xs transition cursor-pointer flex items-center justify-center gap-1.5 ${
-                      individualTemplateType === 'proximo'
-                        ? 'bg-amber-500/20 border-amber-500 text-amber-300 shadow-md'
-                        : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700'
-                    }`}
+                    className={`py-2 px-3 rounded-xl font-bold border text-xs transition cursor-pointer flex items-center justify-center gap-1.5 ${individualTemplateType === 'proximo'
+                      ? 'bg-amber-500/20 border-amber-500 text-amber-300 shadow-md'
+                      : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700'
+                      }`}
                   >
                     🟡 Próximo a Vencer
                   </button>
                   <button
                     type="button"
                     onClick={() => handleSelectIndividualTemplate('general')}
-                    className={`py-2 px-3 rounded-xl font-bold border text-xs transition cursor-pointer flex items-center justify-center gap-1.5 ${
-                      individualTemplateType === 'general'
-                        ? 'bg-emerald-500/20 border-emerald-500 text-emerald-300 shadow-md'
-                        : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700'
-                    }`}
+                    className={`py-2 px-3 rounded-xl font-bold border text-xs transition cursor-pointer flex items-center justify-center gap-1.5 ${individualTemplateType === 'general'
+                      ? 'bg-emerald-500/20 border-emerald-500 text-emerald-300 shadow-md'
+                      : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700'
+                      }`}
                   >
                     🤝 Aviso General
                   </button>

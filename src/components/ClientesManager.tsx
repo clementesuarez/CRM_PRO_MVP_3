@@ -252,19 +252,24 @@ export const ClientesManager: React.FC<ClientesManagerProps> = ({
     if (!editingCliente || !newIntNota.trim()) return;
     setSavingInteraction(true);
     try {
+      const payload = {
+        cliente_id: editingCliente.id,
+        tipo: newIntTipo,
+        nota: newIntNota.trim(),
+        accion_siguiente: newIntAccion.trim() || undefined,
+        proximo_contacto: newIntProximo ? new Date(newIntProximo).toISOString() : undefined,
+      };
+
       if (onSaveInteraction) {
-        await onSaveInteraction({
-          cliente_id: editingCliente.id,
-          tipo: newIntTipo,
-          nota: newIntNota,
-          accion_siguiente: newIntAccion,
-          proximo_contacto: newIntProximo ? new Date(newIntProximo).toISOString() : undefined,
-        });
+        await onSaveInteraction(payload);
+      } else {
+        await dataService.createInteraccion(payload);
       }
       setNewIntNota('');
       setNewIntProximo('');
     } catch (err) {
-      console.error(err);
+      console.error('Error al guardar interacción:', err);
+      alert('Ocurrió un error al guardar la interacción.');
     } finally {
       setSavingInteraction(false);
     }
@@ -502,7 +507,12 @@ export const ClientesManager: React.FC<ClientesManagerProps> = ({
                   filteredClientes.map((c) => {
                     const clientInts = getClientInteractions(c.id);
                     return (
-                      <tr key={c.id} className="hover:bg-slate-900/60 transition">
+                      <tr
+                        key={c.id}
+                        onDoubleClick={() => handleOpenEdit(c, 'ficha')}
+                        className="hover:bg-slate-900/60 transition cursor-pointer"
+                        title="Doble clic para abrir la Ficha Completa del cliente"
+                      >
                         <td className="p-4 min-w-[230px]">
                           <div className="font-extrabold text-slate-100 text-sm">
                             {getClienteFullName(c)}
@@ -619,7 +629,12 @@ export const ClientesManager: React.FC<ClientesManagerProps> = ({
           {filteredClientes.map((c) => {
             const clientInts = getClientInteractions(c.id);
             return (
-              <div key={c.id} className="glass-panel p-4 rounded-2xl border border-slate-800 space-y-3.5 hover:border-slate-700 transition">
+              <div
+                key={c.id}
+                onDoubleClick={() => handleOpenEdit(c, 'ficha')}
+                className="glass-panel p-4 rounded-2xl border border-slate-800 space-y-3.5 hover:border-slate-700 transition cursor-pointer"
+                title="Doble clic para abrir la Ficha Completa del cliente"
+              >
                 <div className="flex items-start justify-between">
                   <div>
                     <h3 className="font-extrabold text-slate-100 text-base">{getClienteFullName(c)}</h3>

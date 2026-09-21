@@ -1,8 +1,8 @@
 @echo off
-title AutoCRM PRO MVP 2 - Servidor Local
+title AutoCRM PRO MVP 3 - Servidor Local
 color 0A
 echo ===================================================
-echo    AutoCRM PRO MVP 2 - Iniciando Servidor Local
+echo    AutoCRM PRO MVP 3 - Iniciando Servidor Local
 echo ===================================================
 echo.
 cd /d "%~dp0"

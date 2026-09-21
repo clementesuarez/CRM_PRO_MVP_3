@@ -546,7 +546,12 @@ export const InventoryManager: React.FC<InventoryManagerProps> = ({
                 </tr>
               ) : (
                 filtered.map((v) => (
-                  <tr key={v.id} className="hover:bg-slate-900/60 transition group">
+                  <tr
+                    key={v.id}
+                    onDoubleClick={() => setViewingVehiculo(v)}
+                    className="hover:bg-slate-900/60 transition group cursor-pointer"
+                    title="Doble clic para ver Ficha Completa del Vehículo"
+                  >
                     {/* Vehículo & Tipo */}
                     <td className="p-3.5">
                       <div className="font-extrabold text-slate-100 text-sm flex items-center gap-1.5">

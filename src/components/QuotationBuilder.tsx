@@ -4,13 +4,10 @@ import {
   Search,
   Car,
   User,
-  DollarSign,
   ArrowRight,
   Check,
   Copy,
   RefreshCw,
-  FileText,
-  Plus,
   ShieldCheck,
   Printer,
   Sparkles,
@@ -24,7 +21,6 @@ import { WhatsAppModal } from './WhatsAppModal';
 import { VehicleAutocomplete } from './VehicleAutocomplete';
 import { DniScannerModal } from './DniScannerModal';
 import { DniParsedResult } from '../utils/dniParser';
-import { CatalogoVehiculoItem } from '../data/catalogoVehicular';
 import { flexSearchMatch } from '../utils/searchHelper';
 
 interface QuotationBuilderProps {
@@ -43,7 +39,7 @@ interface QuotationBuilderProps {
       precio_ofrecido: number;
       anticipo: number;
       saldo_financiado: number;
-      estado: 'Borrador' | 'Enviado';
+      estado: 'borrador' | 'enviado';
     },
     permuta?: Omit<Permuta, 'id' | 'presupuesto_id'>,
     nuevoCliente?: Omit<Cliente, 'id' | 'created_at'>
@@ -53,6 +49,11 @@ interface QuotationBuilderProps {
 interface ItemizedCostState {
   precio_individual: number;
   forma_pago: 'Efectivo' | 'Permuta' | 'Financiado';
+}
+
+function formatMontoMoneda(monto: number, moneda: TipoMoneda = 'USD'): string {
+  const formatted = Math.round(monto || 0).toLocaleString('es-AR');
+  return moneda === 'USD' ? `USD ${formatted}` : `$ ${formatted}`;
 }
 
 export const QuotationBuilder: React.FC<QuotationBuilderProps> = ({
@@ -94,7 +95,7 @@ export const QuotationBuilder: React.FC<QuotationBuilderProps> = ({
   const [precioOfrecido, setPrecioOfrecido] = useState<number>(0);
   const [anticipo, setAnticipo] = useState<number>(0);
 
-  // Permuta (Trade-in) State
+  // Permuta State
   const [hasPermuta, setHasPermuta] = useState(false);
   const [permutaManualMode, setPermutaManualMode] = useState(false);
   const [permutaPatente, setPermutaPatente] = useState('');
@@ -110,20 +111,20 @@ export const QuotationBuilder: React.FC<QuotationBuilderProps> = ({
 
   // Export & WhatsApp Modal state
   const [exportModalOpen, setExportModalOpen] = useState(false);
-  const [savedPresupuesto, setSavedPresupuesto] = useState<Presupuesto | null>(null);
   const [wspModalOpen, setWspModalOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  // Strict available vehicles filter: exclude Vendido and Reacondicionamiento
+  // Filtro de vehículos disponibles en inventario
   const availableVehicles = useMemo(() => {
+    if (!inventario || !Array.isArray(inventario)) return [];
     return inventario.filter(v => {
-      const est = (v.estado || '').toLowerCase();
-      return est === 'disponible' || est === 'reservado';
+      const est = (v.estado || 'disponible').toLowerCase().trim();
+      return est !== 'vendido' && est !== 'reacondicionamiento';
     });
   }, [inventario]);
 
-  // Pre-fill fields when editing an existing quotation draft
+  // Precarga de cotización al editar
   useEffect(() => {
     if (isOpen && presupuestoToEdit) {
       setSelectedClienteId(presupuestoToEdit.cliente_id);
@@ -172,7 +173,6 @@ export const QuotationBuilder: React.FC<QuotationBuilderProps> = ({
         setPermutaMarcaModelo('');
       }
     } else if (isOpen && !presupuestoToEdit) {
-      // Reset form for new quote
       setSelectedClienteId('');
       setSelectedVehiculoIds([]);
       setItemizedDetails({});
@@ -201,9 +201,11 @@ export const QuotationBuilder: React.FC<QuotationBuilderProps> = ({
   }, [clientes, clienteSearch]);
 
   const filteredVehicles = useMemo(() => {
+    const query = vehiculoSearch.trim().toLowerCase();
+    if (!query) return availableVehicles;
     return availableVehicles.filter(v => {
-      const fullText = `${v.marca} ${v.modelo} ${v.patente || ''} ${v.anio} ${v.observaciones || ''}`;
-      return flexSearchMatch(fullText, vehiculoSearch);
+      const fullText = `${v.marca} ${v.modelo} ${v.version || ''} ${v.patente || ''} ${v.anio}`.toLowerCase();
+      return fullText.includes(query) || flexSearchMatch(fullText, query);
     });
   }, [availableVehicles, vehiculoSearch]);
 
@@ -211,7 +213,6 @@ export const QuotationBuilder: React.FC<QuotationBuilderProps> = ({
     return availableVehicles.filter(v => selectedVehiculoIds.includes(v.id));
   }, [availableVehicles, selectedVehiculoIds]);
 
-  // Security Enforcement: Lock quotation currency strictly to vehicle inventory currency
   useEffect(() => {
     if (selectedVehicles.length > 0 && selectedVehicles[0].moneda) {
       setMoneda(selectedVehicles[0].moneda);
@@ -268,7 +269,6 @@ export const QuotationBuilder: React.FC<QuotationBuilderProps> = ({
       };
       const nextState = { ...prev, [vId]: updated };
 
-      // Recalculate sum of individual costs
       const totalSum = selectedVehicles.reduce((sum, v) => {
         const itemP = nextState[v.id]?.precio_individual ?? v.precio_lista;
         return sum + itemP;
@@ -277,7 +277,6 @@ export const QuotationBuilder: React.FC<QuotationBuilderProps> = ({
       setPrecioOfrecido(totalSum);
       setAnticipo(Math.round(totalSum * 0.4));
 
-      // Auto turn on hasPermuta if any vehicle is selected with Permuta mode
       const anyPermuta = Object.values(nextState).some(item => item.forma_pago === 'Permuta');
       if (anyPermuta && !hasPermuta) {
         setHasPermuta(true);
@@ -294,7 +293,7 @@ export const QuotationBuilder: React.FC<QuotationBuilderProps> = ({
 
   if (!isOpen) return null;
 
-  const handleSave = async (estadoTarget: 'Borrador' | 'Enviado') => {
+  const handleSave = async (estadoTarget: 'borrador' | 'enviado') => {
     if (!isNewCliente && !selectedClienteId) {
       alert('Por favor selecciona un cliente existente o crea uno nuevo.');
       return;
@@ -350,7 +349,7 @@ export const QuotationBuilder: React.FC<QuotationBuilderProps> = ({
         };
       });
 
-      const result = await onSaveQuotation(
+      await onSaveQuotation(
         {
           id: presupuestoToEdit?.id,
           cliente_id: selectedClienteId,
@@ -366,7 +365,6 @@ export const QuotationBuilder: React.FC<QuotationBuilderProps> = ({
         nuevoClienteObj
       );
 
-      setSavedPresupuesto(result);
       setExportModalOpen(true);
     } catch (err) {
       console.error(err);
@@ -376,12 +374,11 @@ export const QuotationBuilder: React.FC<QuotationBuilderProps> = ({
   };
 
   const generateWhatsAppSummaryText = () => {
-    const clienteName = isNewCliente ? newNombre : selectedCliente?.nombre;
-    const currSymbol = moneda === 'USD' ? '$ USD' : '$ ARS';
+    const clienteName = isNewCliente ? newNombre : selectedCliente?.nombre || 'Cliente';
 
     const itemsFormatted = selectedVehicles.map(v => {
       const detail = itemizedDetails[v.id] || { precio_individual: v.precio_lista, forma_pago: 'Efectivo' };
-      return `🚗 *${v.marca} ${v.modelo} (${v.anio})*\n   • Monto Cotizado: ${detail.precio_individual.toLocaleString()} ${currSymbol}\n   • Forma de Pago: ${detail.forma_pago}`;
+      return `🚗 *${v.marca} ${v.modelo} (${v.anio})*\n   • Monto Cotizado: ${formatMontoMoneda(detail.precio_individual, moneda)}\n   • Forma de Pago: ${detail.forma_pago}`;
     }).join('\n\n');
 
     return `📌 *PRESUPUESTO AGENCIA AUTOMOTOR*
@@ -392,9 +389,9 @@ export const QuotationBuilder: React.FC<QuotationBuilderProps> = ({
 ${itemsFormatted || '• Vehículo Cotizado'}
 
 ----------------------------------------
-💰 *PRECIO TOTAL OFRECIDO:* ${precioOfrecido.toLocaleString()} ${currSymbol}
-💵 *Anticipo en Efectivo:* ${anticipo.toLocaleString()} ${currSymbol}
-${hasPermuta ? `🔄 *Toma Usado (${permutaMarcaModelo}):* ${permutaValorTasacion.toLocaleString()} ${currSymbol}\n` : ''}🏦 *SALDO FINAL A FINANCIAR:* ${saldoFinanciado.toLocaleString()} ${currSymbol}
+💰 *PRECIO TOTAL OFRECIDO:* ${formatMontoMoneda(precioOfrecido, moneda)}
+💵 *Anticipo en Efectivo:* ${formatMontoMoneda(anticipo, moneda)}
+${hasPermuta ? `🔄 *Toma Usado (${permutaMarcaModelo}):* ${formatMontoMoneda(permutaValorTasacion, moneda)}\n` : ''}🏦 *SALDO FINAL A FINANCIAR:* ${formatMontoMoneda(saldoFinanciado, moneda)}
 ----------------------------------------
 _Cotización válida por 7 días. ¡Consultanos por entrega inmediata!_`;
   };
@@ -429,7 +426,7 @@ _Cotización válida por 7 días. ¡Consultanos por entrega inmediata!_`;
           </button>
         </div>
 
-        {/* Step Indicator */}
+        {/* Indicador de pasos */}
         <div className="flex items-center justify-center gap-4 mb-6">
           <button
             onClick={() => setStep(1)}
@@ -455,10 +452,10 @@ _Cotización válida por 7 días. ¡Consultanos por entrega inmediata!_`;
           </button>
         </div>
 
-        {/* STEP 1: CLIENTE & VEHÍCULOS */}
+        {/* PASO 1: SELECCIÓN DE CLIENTE Y VEHÍCULOS */}
         {step === 1 && (
           <div className="space-y-6">
-            {/* SECCIÓN CLIENTE */}
+            {/* Cliente */}
             <div className="bg-slate-900/60 p-4 rounded-xl border border-slate-800 space-y-3">
               <div className="flex items-center justify-between flex-wrap gap-2">
                 <label className="text-xs font-bold text-slate-200 uppercase tracking-wider flex items-center gap-2">
@@ -470,7 +467,7 @@ _Cotización válida por 7 días. ¡Consultanos por entrega inmediata!_`;
                     type="button"
                     onClick={() => setClientScannerOpen(true)}
                     className="text-xs font-bold px-3 py-1.5 rounded-lg bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/20 flex items-center gap-1.5 transition active:scale-95 shadow-sm"
-                    title="Escanear DNI argentino (Lector USB o Cámara)"
+                    title="Escanear DNI argentino"
                   >
                     <Scan className="w-3.5 h-3.5" />
                     Escanear DNI
@@ -568,8 +565,8 @@ _Cotización válida por 7 días. ¡Consultanos por entrega inmediata!_`;
                         type="button"
                         onClick={() => setSelectedClienteId(c.id)}
                         className={`p-2.5 rounded-xl border text-left flex items-center justify-between transition text-xs ${selectedClienteId === c.id
-                          ? 'bg-cyan-500/20 border-cyan-500 text-cyan-200'
-                          : 'bg-slate-950/80 border-slate-800 text-slate-300 hover:border-slate-700'
+                            ? 'bg-cyan-500/20 border-cyan-500 text-cyan-200'
+                            : 'bg-slate-950/80 border-slate-800 text-slate-300 hover:border-slate-700'
                           }`}
                       >
                         <div>
@@ -584,7 +581,7 @@ _Cotización válida por 7 días. ¡Consultanos por entrega inmediata!_`;
               )}
             </div>
 
-            {/* SECCIÓN VEHÍCULOS EN STOCK (MULTI-SELECCIÓN) */}
+            {/* Vehículos en stock */}
             <div className="bg-slate-900/60 p-4 rounded-xl border border-slate-800 space-y-3">
               <div className="flex items-center justify-between">
                 <label className="text-xs font-bold text-slate-200 uppercase tracking-wider flex items-center gap-2">
@@ -592,7 +589,7 @@ _Cotización válida por 7 días. ¡Consultanos por entrega inmediata!_`;
                   2. Selección de Auto(s) en Stock (Disponibles y Reservados)
                 </label>
                 <span className="text-[11px] text-cyan-300 font-bold">
-                  Seleccionados: {selectedVehiculoIds.length}
+                  Disponibles: {availableVehicles.length} | Seleccionados: {selectedVehiculoIds.length}
                 </span>
               </div>
 
@@ -601,7 +598,7 @@ _Cotización válida por 7 días. ¡Consultanos por entrega inmediata!_`;
                   <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                   <input
                     type="text"
-                    placeholder="Búsqueda predictiva en salón (ej: 'hilux', '208', 'AF123', 'amarok')..."
+                    placeholder="Búsqueda rápida (ej: 'hilux', '208', 'amarok', 'AF123')..."
                     value={vehiculoSearch}
                     onChange={(e) => setVehiculoSearch(e.target.value)}
                     className="w-full bg-slate-950 border border-slate-700 rounded-xl pl-9 pr-4 py-2 text-xs text-slate-100 focus:outline-none focus:border-cyan-500"
@@ -610,11 +607,10 @@ _Cotización válida por 7 días. ¡Consultanos por entrega inmediata!_`;
                 <button
                   type="button"
                   onClick={() => setShowCatalogoQuoteSelector(!showCatalogoQuoteSelector)}
-                  className={`px-3 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shrink-0 cursor-pointer ${
-                    showCatalogoQuoteSelector
+                  className={`px-3 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shrink-0 cursor-pointer ${showCatalogoQuoteSelector
                       ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
                       : 'bg-amber-950/40 text-amber-300 border border-amber-500/30 hover:bg-amber-900/60'
-                  }`}
+                    }`}
                 >
                   <Sparkles className="w-3.5 h-3.5" />
                   <span>{showCatalogoQuoteSelector ? 'Ocultar Catálogo' : 'Catálogo DNRPA'}</span>
@@ -628,10 +624,10 @@ _Cotización válida por 7 días. ¡Consultanos por entrega inmediata!_`;
                       <Sparkles className="w-3.5 h-3.5" />
                       Buscar modelo en Catálogo DNRPA para cotizar
                     </span>
-                    <span className="text-[10px] text-slate-400">Agrega la unidad aunque no esté en el stock actual</span>
+                    <span className="text-[10px] text-slate-400">Agrega la unidad aunque no esté en el stock</span>
                   </div>
                   <VehicleAutocomplete
-                    placeholder="Escribe para buscar en catálogo oficial (ej: Amarok V6, Hilux SRX, Cronos, 208 GT...)"
+                    placeholder="Escribe marca y modelo (ej: Amarok V6, Hilux SRX, Cronos, 208 GT...)"
                     onSelect={(item) => {
                       const customId = 'cat_' + item.id + '_' + Date.now();
                       const customVehiculo: Inventario = {
@@ -648,7 +644,7 @@ _Cotización válida por 7 días. ¡Consultanos por entrega inmediata!_`;
                         precio_lista: 22000,
                         costo_compra: 18000,
                         tipo_vehiculo: item.tipo,
-                        estado: 'Disponible',
+                        estado: 'disponible',
                         observaciones: `Cotizado desde catálogo oficial DNRPA: ${item.origen}`,
                         created_at: new Date().toISOString()
                       };
@@ -665,7 +661,7 @@ _Cotización válida por 7 días. ¡Consultanos por entrega inmediata!_`;
                 {filteredVehicles.length === 0 ? (
                   <div className="col-span-2 p-4 text-center border border-dashed border-slate-800 rounded-xl space-y-2">
                     <p className="text-xs text-slate-400">
-                      No se encontraron autos en stock disponible con el término <span className="text-cyan-300 font-bold">"{vehiculoSearch}"</span>.
+                      No se encontraron autos en stock con el término <span className="text-cyan-300 font-bold">"{vehiculoSearch}"</span>.
                     </p>
                     <button
                       type="button"
@@ -686,7 +682,7 @@ _Cotización válida por 7 días. ¡Consultanos por entrega inmediata!_`;
                           moneda: 'USD',
                           precio_lista: 15000,
                           costo_compra: 10000,
-                          estado: 'Disponible',
+                          estado: 'disponible',
                           observaciones: 'Ingresado para cotización especial',
                           created_at: new Date().toISOString()
                         };
@@ -707,8 +703,8 @@ _Cotización válida por 7 días. ¡Consultanos por entrega inmediata!_`;
                         type="button"
                         onClick={() => handleToggleVehiculo(v)}
                         className={`p-3 rounded-xl border text-left flex items-center justify-between transition text-xs ${isSelected
-                          ? 'bg-cyan-500/20 border-cyan-500 text-cyan-200 shadow-md shadow-cyan-950'
-                          : 'bg-slate-950/80 border-slate-800 text-slate-300 hover:border-slate-700'
+                            ? 'bg-cyan-500/20 border-cyan-500 text-cyan-200 shadow-md shadow-cyan-950'
+                            : 'bg-slate-950/80 border-slate-800 text-slate-300 hover:border-slate-700'
                           }`}
                       >
                         <div className="flex items-center gap-2.5">
@@ -724,16 +720,13 @@ _Cotización válida por 7 días. ¡Consultanos por entrega inmediata!_`;
                               {v.es_cero_km && <span className="bg-cyan-400/20 text-cyan-300 font-extrabold text-[9px] px-1.5 py-0.5 rounded">0KM</span>}
                             </div>
                             <div className="text-[11px] text-slate-400 mt-0.5">
-                              Año: {v.anio} | Km: {v.kilometraje.toLocaleString()} | Patente: <span className="font-mono">{v.patente || 'S/D'}</span>
+                              Año: {v.anio} | Km: {v.kilometraje?.toLocaleString() || 0} | Patente: <span className="font-mono">{v.patente || 'S/D'}</span>
                             </div>
                           </div>
                         </div>
                         <div className="text-right">
                           <div className="font-extrabold text-emerald-400 text-sm flex items-center justify-end gap-1 font-mono">
-                            <span className="bg-slate-800 border border-slate-700 text-[10px] text-slate-300 px-1.5 py-0.5 rounded font-mono">
-                              {v.moneda === 'USD' ? 'USD' : '$ ARS'}
-                            </span>
-                            <span>{v.precio_lista.toLocaleString()}</span>
+                            <span>{formatMontoMoneda(v.precio_lista, v.moneda)}</span>
                           </div>
                           {isSelected && <span className="text-[10px] text-cyan-400 font-bold">✓ Cotizado</span>}
                         </div>
@@ -744,7 +737,6 @@ _Cotización válida por 7 días. ¡Consultanos por entrega inmediata!_`;
               </div>
             </div>
 
-            {/* Next Step Action */}
             <div className="flex justify-end pt-2">
               <button
                 type="button"
@@ -759,11 +751,9 @@ _Cotización válida por 7 días. ¡Consultanos por entrega inmediata!_`;
           </div>
         )}
 
-        {/* STEP 2: FINANCIERA & COSTOS POR AUTO */}
+        {/* PASO 2: ESTRUCTURA FINANCIERA */}
         {step === 2 && (
           <div className="space-y-6">
-
-            {/* ITEMIZED VEHICLES BREAKDOWN & PAYMENT MODES */}
             <div className="bg-slate-900 border border-slate-800 p-4 rounded-xl space-y-4">
               <div className="flex items-center justify-between border-b border-slate-800 pb-2">
                 <span className="font-bold text-slate-200 text-xs flex items-center gap-2 uppercase tracking-wider">
@@ -793,14 +783,13 @@ _Cotización válida por 7 días. ¡Consultanos por entrega inmediata!_`;
                             </span>
                           </div>
                           <div className="text-[11px] text-slate-400 mt-0.5">
-                            Precio de Lista Orig: <span className="font-semibold text-slate-300 font-mono">{v.moneda === 'USD' ? 'USD ' : '$ '}{v.precio_lista.toLocaleString()}</span>
+                            Precio de Lista: <span className="font-semibold text-slate-300 font-mono">{formatMontoMoneda(v.precio_lista, v.moneda)}</span>
                           </div>
                         </div>
 
-                        {/* Moneda & Individual Amount Input */}
                         <div className="flex items-center gap-2">
                           <div className="flex items-center gap-1.5 bg-slate-900 px-2.5 py-1.5 rounded-xl border border-slate-700">
-                            <span className="text-[11px] font-extrabold text-cyan-400 font-mono">{v.moneda === 'USD' ? 'USD' : '$ ARS'}</span>
+                            <span className="text-[11px] font-extrabold text-cyan-400 font-mono">{v.moneda === 'USD' ? 'USD' : '$'}</span>
                             <input
                               type="number"
                               value={detail.precio_individual}
@@ -811,9 +800,8 @@ _Cotización válida por 7 días. ¡Consultanos por entrega inmediata!_`;
                         </div>
                       </div>
 
-                      {/* Payment mode selector for this vehicle */}
                       <div className="flex items-center justify-between pt-2 border-t border-slate-900">
-                        <span className="text-[11px] font-semibold text-slate-400">Forma de Pago para este vehículo:</span>
+                        <span className="text-[11px] font-semibold text-slate-400">Forma de Pago:</span>
                         <div className="flex items-center gap-1.5 bg-slate-900 p-1 rounded-xl border border-slate-800">
                           <button
                             type="button"
@@ -821,7 +809,7 @@ _Cotización válida por 7 días. ¡Consultanos por entrega inmediata!_`;
                             className={`px-3 py-1 rounded-lg text-xs font-bold transition ${detail.forma_pago === 'Efectivo' ? 'bg-emerald-500 text-slate-950 shadow-md' : 'text-slate-400 hover:text-slate-200'
                               }`}
                           >
-                            💵 Paga en Efectivo
+                            💵 Efectivo
                           </button>
                           <button
                             type="button"
@@ -847,73 +835,72 @@ _Cotización válida por 7 días. ¡Consultanos por entrega inmediata!_`;
               </div>
             </div>
 
-            {/* CURRENCY SELECTOR & FINANCIAL INPUTS */}
             <div className="space-y-3">
               <div className="bg-slate-900/80 p-3.5 rounded-xl border border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                 <div>
                   <label className="text-xs font-bold text-slate-200 uppercase tracking-wider flex items-center gap-1.5">
                     <ShieldCheck className="w-4 h-4 text-emerald-400" />
-                    Moneda de Cotización Protegida por Seguridad
+                    Moneda de Operación
                   </label>
                   <p className="text-[11px] text-slate-400 mt-0.5">
-                    Fijada automáticamente desde la Ficha de Inventario del vehículo para prevenir confusiones cambiarias ($ / USD).
+                    Asignada según la divisa del stock seleccionado.
                   </p>
                 </div>
 
                 <div className="px-3.5 py-1.5 rounded-xl bg-slate-950 border border-emerald-500/40 text-emerald-400 font-extrabold text-xs flex items-center gap-2 font-mono shadow-md shrink-0">
                   <Lock className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>{moneda === 'USD' ? 'USD (Dólares Estadounidenses)' : '$ ARS (Pesos Argentinos)'}</span>
+                  <span>{moneda === 'USD' ? 'USD (Dólares)' : '$ ARS (Pesos)'}</span>
                 </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div className="bg-slate-900/60 p-3.5 rounded-xl border border-slate-800">
                   <label className="block text-xs font-semibold text-slate-300 mb-1">
-                    Precio Acordado Total
+                    Precio Total Ofrecido
                   </label>
                   <div className="relative flex items-center">
-                    <span className="absolute left-3 text-slate-400 font-bold text-xs font-mono">{moneda === 'USD' ? 'USD' : '$ ARS'}</span>
+                    <span className="absolute left-3 text-slate-400 font-bold text-xs font-mono">{moneda === 'USD' ? 'USD' : '$'}</span>
                     <input
                       type="number"
                       value={precioOfrecido}
                       onChange={(e) => setPrecioOfrecido(Number(e.target.value))}
-                      className="w-full bg-slate-950 border border-slate-700 rounded-xl pl-14 pr-3 py-2.5 text-sm font-bold text-emerald-400 focus:outline-none focus:border-cyan-500 font-mono"
+                      className="w-full bg-slate-950 border border-slate-700 rounded-xl pl-12 pr-3 py-2.5 text-sm font-bold text-emerald-400 focus:outline-none focus:border-cyan-500 font-mono"
                     />
                   </div>
                 </div>
 
                 <div className="bg-slate-900/60 p-3.5 rounded-xl border border-slate-800">
                   <label className="block text-xs font-semibold text-slate-300 mb-1">
-                    Anticipo en Mano
+                    Anticipo en Efectivo
                   </label>
                   <div className="relative flex items-center">
-                    <span className="absolute left-3 text-slate-400 font-bold text-xs font-mono">{moneda === 'USD' ? 'USD' : '$ ARS'}</span>
+                    <span className="absolute left-3 text-slate-400 font-bold text-xs font-mono">{moneda === 'USD' ? 'USD' : '$'}</span>
                     <input
                       type="number"
                       value={anticipo}
                       onChange={(e) => setAnticipo(Number(e.target.value))}
-                      className="w-full bg-slate-950 border border-slate-700 rounded-xl pl-14 pr-3 py-2.5 text-sm font-bold text-cyan-300 focus:outline-none focus:border-cyan-500 font-mono"
+                      className="w-full bg-slate-950 border border-slate-700 rounded-xl pl-12 pr-3 py-2.5 text-sm font-bold text-cyan-300 focus:outline-none focus:border-cyan-500 font-mono"
                     />
                   </div>
                 </div>
 
                 <div className="bg-slate-900 p-3.5 rounded-xl border border-cyan-500/40 text-right">
                   <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1">
-                    Saldo a Financiar Resultante
+                    Saldo Final a Financiar
                   </label>
                   <div className="text-xl font-black text-emerald-400 font-mono">
-                    {moneda === 'USD' ? 'USD ' : '$ '}{saldoFinanciado.toLocaleString()}
+                    {formatMontoMoneda(saldoFinanciado, moneda)}
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* REACTIVE TRADE-IN TOGGLE (PERMUTA) */}
+            {/* Permuta */}
             <div className="bg-slate-900/60 p-4 rounded-xl border border-slate-800 space-y-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <RefreshCw className="w-4 h-4 text-amber-400" />
-                  <span className="text-xs font-bold text-slate-200">¿Entrega auto usado como permuta?</span>
+                  <span className="text-xs font-bold text-slate-200">¿Entrega auto usado en parte de pago?</span>
                 </div>
 
                 <button
@@ -928,19 +915,18 @@ _Cotización válida por 7 días. ¡Consultanos por entrega inmediata!_`;
 
               {hasPermuta && (
                 <div className="pt-3 border-t border-slate-800/80 space-y-3 animate-fade-in">
-                  {/* BÚSQUEDA DNRPA PARA UNIDAD EN PERMUTA */}
                   <div className="bg-slate-950/80 p-3 rounded-xl border border-amber-500/30 space-y-1.5">
                     <div className="flex items-center justify-between">
                       <span className="text-amber-400 font-bold text-[11px] flex items-center gap-1.5">
                         <Sparkles className="w-3.5 h-3.5" />
-                        Autocompletar Unidad en Permuta desde Catálogo DNRPA
+                        Autocompletar Permuta desde Catálogo DNRPA
                       </span>
                       <button
                         type="button"
                         onClick={() => setPermutaManualMode(!permutaManualMode)}
                         className="text-[10px] text-slate-400 hover:text-amber-300 underline font-medium cursor-pointer"
                       >
-                        {permutaManualMode ? '⚡ Usar Catálogo Predictivo' : '✏️ Cargar manualmente'}
+                        {permutaManualMode ? '⚡ Usar Catálogo' : '✏️ Cargar manualmente'}
                       </button>
                     </div>
 
@@ -960,7 +946,7 @@ _Cotización válida por 7 días. ¡Consultanos por entrega inmediata!_`;
                       />
                     ) : (
                       <div className="text-[10px] text-amber-300 font-medium">
-                        ✏️ Modo manual activo: escribe la marca, modelo y versión directamente en los campos inferiores.
+                        ✏️ Modo manual activo: completa los datos en los casilleros inferiores.
                       </div>
                     )}
                   </div>
@@ -993,10 +979,10 @@ _Cotización válida por 7 días. ¡Consultanos por entrega inmediata!_`;
                       />
                     </div>
                     <div>
-                      <label className="block text-[11px] font-medium text-slate-400 mb-1">Versión Usado</label>
+                      <label className="block text-[11px] font-medium text-slate-400 mb-1">Versión</label>
                       <input
                         type="text"
-                        placeholder="Ej: 1.6 MSI Trendline 5P"
+                        placeholder="Ej: 1.6 MSI Trendline"
                         value={permutaVersion}
                         onChange={(e) => {
                           setPermutaVersion(e.target.value);
@@ -1044,21 +1030,21 @@ _Cotización válida por 7 días. ¡Consultanos por entrega inmediata!_`;
                         Tasación de Toma ({moneda}) *
                       </label>
                       <div className="relative flex items-center">
-                        <span className="absolute left-3 text-amber-400 font-bold text-xs font-mono">${moneda}</span>
+                        <span className="absolute left-3 text-amber-400 font-bold text-xs font-mono">{moneda === 'USD' ? 'USD' : '$'}</span>
                         <input
                           type="number"
-                          placeholder="Monto al que la agencia toma el vehículo"
+                          placeholder="Monto al que se toma el vehículo"
                           value={permutaValorTasacion}
                           onChange={(e) => setPermutaValorTasacion(Number(e.target.value))}
-                          className="w-full bg-slate-950 border border-amber-500/50 rounded-xl pl-14 pr-3 py-2 text-sm font-extrabold text-amber-400 focus:outline-none focus:border-amber-400"
+                          className="w-full bg-slate-950 border border-amber-500/50 rounded-xl pl-12 pr-3 py-2 text-sm font-extrabold text-amber-400 focus:outline-none focus:border-amber-400"
                         />
                       </div>
                     </div>
                     <div>
-                      <label className="block text-[11px] font-medium text-slate-400 mb-1">Notas Mecánicas / Chapa</label>
+                      <label className="block text-[11px] font-medium text-slate-400 mb-1">Observaciones Mecánicas / Chapa</label>
                       <input
                         type="text"
-                        placeholder="Ej: Rayón puerta trasera derecha, service hecho..."
+                        placeholder="Ej: Detalles de uso, cubiertas, etc."
                         value={permutaNotas}
                         onChange={(e) => setPermutaNotas(e.target.value)}
                         className="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-xs text-slate-100 focus:outline-none focus:border-amber-500"
@@ -1069,7 +1055,6 @@ _Cotización válida por 7 días. ¡Consultanos por entrega inmediata!_`;
               )}
             </div>
 
-            {/* ACTION BUTTONS */}
             <div className="flex items-center justify-between pt-4 border-t border-slate-800">
               <button
                 type="button"
@@ -1083,7 +1068,7 @@ _Cotización válida por 7 días. ¡Consultanos por entrega inmediata!_`;
                 <button
                   type="button"
                   disabled={loading}
-                  onClick={() => handleSave('Borrador')}
+                  onClick={() => handleSave('borrador')}
                   className="px-4 py-2.5 rounded-xl text-xs font-bold bg-slate-800 text-slate-200 hover:bg-slate-700 transition"
                 >
                   Guardar como Borrador
@@ -1092,7 +1077,7 @@ _Cotización válida por 7 días. ¡Consultanos por entrega inmediata!_`;
                 <button
                   type="button"
                   disabled={loading}
-                  onClick={() => handleSave('Enviado')}
+                  onClick={() => handleSave('enviado')}
                   className="px-6 py-2.5 rounded-xl text-xs font-extrabold bg-gradient-to-r from-cyan-500 to-emerald-500 text-slate-950 hover:from-cyan-400 hover:to-emerald-400 transition shadow-lg shadow-cyan-500/20 active:scale-95 disabled:opacity-50"
                 >
                   {loading ? 'Guardando...' : 'Guardar y Exportar Presupuesto'}
@@ -1103,7 +1088,7 @@ _Cotización válida por 7 días. ¡Consultanos por entrega inmediata!_`;
         )}
       </div>
 
-      {/* EXPORT MODAL */}
+      {/* MODAL DE EXPORTACIÓN */}
       {exportModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md p-4 animate-fade-in">
           <div className="glass-panel w-full max-w-lg rounded-2xl border border-cyan-500/50 p-6 shadow-2xl space-y-4">
@@ -1118,10 +1103,10 @@ _Cotización válida por 7 días. ¡Consultanos por entrega inmediata!_`;
             </div>
 
             <p className="text-xs text-slate-300">
-              Copia el resumen o envíalo directamente por el Pop-up de WhatsApp:
+              Resumen para enviar por WhatsApp:
             </p>
 
-            <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 text-xs font-mono text-cyan-200 whitespace-pre-wrap relative max-h-60 overflow-y-auto">
+            <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 text-xs font-mono text-cyan-200 whitespace-pre-wrap relative max-h-60 overflow-y-auto leading-relaxed">
               {generateWhatsAppSummaryText()}
             </div>
 
@@ -1148,7 +1133,7 @@ _Cotización válida por 7 días. ¡Consultanos por entrega inmediata!_`;
                 <button
                   type="button"
                   onClick={handleCopyText}
-                  className="px-5 py-2 rounded-xl text-xs font-extrabold bg-cyan-500 text-slate-950 hover:bg-cyan-400 transition flex items-center gap-2 shadow-lg shadow-cyan-500/20 active:scale-95"
+                  className="px-5 py-2.5 rounded-xl text-xs font-extrabold bg-cyan-500 text-slate-950 hover:bg-cyan-400 transition flex items-center gap-2 shadow-lg shadow-cyan-500/20 active:scale-95"
                 >
                   {copied ? <Check className="w-4 h-4 text-slate-950" /> : <Copy className="w-4 h-4" />}
                   {copied ? '¡Copiado!' : 'Copiar Texto'}
@@ -1166,7 +1151,7 @@ _Cotización válida por 7 días. ¡Consultanos por entrega inmediata!_`;
         clienteNombre={isNewCliente ? newNombre : selectedCliente?.nombre || 'Cliente'}
         clienteTelefono={isNewCliente ? newTelefono : selectedCliente?.telefono || ''}
         vehiculoNombre={selectedVehicles.map(v => `${v.marca} ${v.modelo}`).join(' + ')}
-        precioFormatted={`${precioOfrecido.toLocaleString()} ${moneda}`}
+        precioFormatted={formatMontoMoneda(precioOfrecido, moneda)}
         defaultTemplateType="cotizacion"
       />
 

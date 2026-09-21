@@ -1,4 +1,8 @@
-# Logs
+# ==============================================================================
+# GESTIÓN CONCESIONARIOS CRM - GIT IGNORE
+# ==============================================================================
+
+# Logs del sistema y gestores de paquetes
 logs
 *.log
 npm-debug.log*
@@ -7,62 +11,62 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
-# Diagnostic reports (https://nodejs.org/api/report.html)
+# Diagnostic reports
 report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 
-# Runtime data
+# Runtime & Process IDs
 pids
 *.pid
 *.seed
 *.pid.lock
 
-# Directory for instrumented code leveraged by Istanbul
-lib-cov
-
-# Coverage directory used by tools like istanbul
-coverage
-*.lcov
-
-# nyc test coverage
-.nyc_output
-
-# Grunt intermediate storage (https://gruntjs.com/creating-plugins#storing-task-files)
-.grunt
-
-# Bower dependency directory (https://bower.io/)
-bower_components
-
-# node-modules
+# Directorios de dependencias
 node_modules/
+bower_components/
 
-# Production build output
+# Compilaciones y producción
 dist/
 dist-ssr/
 *.local
 
-# Editor & IDE directories
-.vscode/*
-!.vscode/extensions.json
-.idea
-.DS_Store
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
-
-# Environment variables
+# Archivos de entorno y credenciales
 .env
 .env.local
 .env.development.local
 .env.test.local
 .env.production.local
 
-# Backups
-src_BACKUP_SNAPSHOT/
-
-# SQLite Databases
+# Bases de datos SQLite locales y diarios transaccionales (CRÍTICO)
 *.db
 *.db-journal
 *.db-shm
 *.db-wal
+crm_local.db
+
+# Carpetas de respaldos y snapshots locales
+backups/
+src_BACKUP_SNAPSHOT/
+
+# Exportaciones de datos privados (evita fugar clientes o stock a GitHub)
+*.csv
+Backup_*.csv
+Backup_*.json
+
+# Archivos temporales de Editores e IDEs
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+Thumbs.db
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Cobertura y testing
+coverage/
+*.lcov
+.nyc_output/
+.grunt/
+lib-cov/

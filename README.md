@@ -1,77 +1,53 @@
-# 🚗 AutoCRM PRO MVP 3 — Gestor Automotor Serverless & Seguro
+# 🚗 AutoCRM PRO — Gestor Automotor Local, Autónomo & Seguro
 
-Sistema CRM integral diseñado para agencias de autos usados y 0km en Argentina. Opera con costo $0 en infraestructura, arquitectura híbrida (Supabase Cloud + LocalStorage Offline), control de acceso basado en 3 roles (RBAC) y catálogo predictivo vehicular unificado.
+Sistema integral de gestión comercial y control financiero para agencias de autos usados y 0km. Diseñado bajo una arquitectura **100% autónoma y local (On-Premise)** con persistencia física en **SQLite**, acceso en red local (LAN / Wi-Fi) para terminales satélite (PCs y móviles), control de acceso jerárquico (RBAC) y soberanía absoluta de datos sin costos recurrentes de infraestructura ni dependencias externas.
 
 ---
 
-## 🎯 Novedades y Objetivos de MVP 3
+## 🎯 Características Principales
 
-1. **Control de Acceso Basado en Roles (RBAC en 3 Niveles)**:
-   - **`vendedor`**: Solo accede a precios de venta de lista (`precio_lista`) y sus propias cotizaciones.
-     - **Costo de compra (`costo_compra`) ofuscado y bloqueado**: No viaja al frontend comercial y se oculta en stock, fichas y formularios.
-     - **Márgenes comerciales ocultos**.
-     - **Módulo de Pagarés & Cobranzas bloqueado**: Inaccesible por UI y por políticas de seguridad RLS.
-     - **Panel de Administración inaccesible**.
-   - **`admin` (Dueño de Agencia)**: Control comercial total.
-     - Visualización de costos reales y márgenes brutos estimados.
-     - Gestión integral de pagarés, refinanciaciones y reclamos.
-     - Panel de **"Gestión de Personal & Roles (RBAC)"** para alta de vendedores, asignación de perfiles y activación/desactivación de cuentas.
-   - **`superadmin` (Desarrollador / Soporte)**:
-     - Acceso irrestricto sin restricciones.
-     - **Consola Técnica SuperAdmin**: Diagnóstico de latencia en vivo (ping a Supabase), inspección de estado de las 6 tablas y verificación de políticas RLS.
-   - **Simulador en Navbar**: Dropdown interactivo para alternar entre los 3 roles con 1 clic y verificar las restricciones al instante.
+### 1. Autonomía Total & Persistencia SQL Local
+- **Motor SQLite Integrado**: Todos los datos se almacenan en un único archivo físico seguro (`crm_local.db`) dentro del equipo servidor de la agencia.
+- **Cero Dependencias de Nube**: Funciona sin internet para la operatoria interna del salón.
+- **Resguardos Físicos & Google Drive**: Módulo de respaldo con descarga directa y copia automatizada a la carpeta local sincronizada de Google Drive (`crm_backup_YYYY-MM-DD_HHmm.db`).
+- **Restauración Asistida**: Script de contingencia (`RESTAURAR_BACKUP.bat`) con validación de procesos activos, purga de diarios SQLite y backup preventivo antes de sobrescribir.
 
-2. **Catálogo Predictivo de Vehículos Argentina ($0 Costo de API)**:
-   - Base de datos estática indexada en [`src/data/catalogoVehicular.ts`](./src/data/catalogoVehicular.ts) con las marcas, modelos y versiones más populares del mercado automotor argentino.
-   - Motor de búsqueda difusa ultrarrápida (<15ms) por tokens múltiples.
-   - Componente [`VehicleAutocomplete.tsx`](./src/components/VehicleAutocomplete.tsx) con soporte de navegación por teclado, chips de tipo de carrocería (Pick-up, SUV, Sedán, Hatchback), procedencia (Nacional / Importado) y sugerencia automática de años.
+### 2. Control de Acceso por Roles (RBAC Jerárquico)
+Autenticación estricta con credenciales validadas contra base SQLite:
+- **`vendedor` (Comercial)**:
+  - Consulta de stock y precios de venta de lista (`precio_lista`).
+  - **Costos de toma y compra bloqueados** (no expuestos al frontend).
+  - Márgenes comerciales y rentabilidad ocultos.
+  - Módulo de Pagarés, Cobranzas y Dashboard Directivo completamente restringidos.
+- **`admin` (Dueño de Agencia)**:
+  - Visibilidad de costos de compra, márgenes brutos y cotizaciones globales.
+  - Tablero Directivo con métricas de rotación de stock (días en salón), volumen de ventas comparativo y motivos de pérdida.
+  - Gestión integral de cartera de pagarés y reclamos de cobranza.
+  - Alta y blanqueo de contraseñas de personal (exclusivamente para rol `vendedor`).
+- **`superadmin` (Desarrollador / Soporte Técnico)**:
+  - Control de infraestructura y mantenimiento de base de datos.
+  - Gestión jerárquica: habilitado para crear y gestionar cuentas de `admin` (Dueños) y `vendedor`.
 
-3. **Arquitectura de Base de Datos Segura ([`schema.sql`](./schema.sql))**:
-   - Tabla `perfiles_usuarios` vinculada a `auth.users(id)` con validación de roles (`vendedor`, `admin`, `superadmin`).
-   - Función segura `public.get_current_user_role()` (SECURITY DEFINER) para evaluación en Row Level Security (RLS).
-   - Vista `vista_inventario_comercial` que excluye `costo_compra` a nivel de servidor PostgreSQL.
-   - Tabla `catalogo_vehiculos` con extensión `pg_trgm` e índice GIN tridimensional.
-   - Políticas RLS estrictas en `cuotas_pagares`, `prestamos_pagares` y `perfiles_usuarios`.
+### 3. Operatoria Dinámica y Sin Fricción
+- **Carga 100% Manual y Directa**: Registro libre de vehículos y clientes sin restricciones de catálogos rígidos ni dependencias de APIs gubernamentales.
+- **Cotizador Rápido con Salida a WhatsApp**: Formateo automático de presupuestos comerciales detallando anticipo, toma de permuta, saldo y esquema de cuotas fijas, con enlace directo a la app oficial de WhatsApp.
+- **Cierre de Venta con Fecha Histórica**: Registro explícito de la fecha de entrega de la unidad para auditorías contables y cálculo de rotación de inventario.
+- **Exportación Completa a CSV**: Descarga en planillas independientes de Clientes, Inventario, Presupuestos y Pagarés.
 
 ---
 
 ## 🏗️ Stack Tecnológico
 
-- **Frontend**: React 18 + TypeScript + Vite.
-- **Estilos**: Tailwind CSS + Glassmorphism Dark Mode.
-- **Iconos**: Lucide React.
-- **Persistencia**: Dual-mode (Supabase PostgreSQL si existen credenciales en `.env`, con fallback automático a LocalStorage).
+- **Frontend**: React 18, TypeScript, Vite, Tailwind CSS (Glassmorphism Dark UI), Lucide Icons.
+- **Backend Local**: Node.js, Express (API REST interna embebida en middleware Vite).
+- **Base de Datos**: SQLite nativo (`better-sqlite3`), esquemas relacionales indexados con integridad referencial (`PRAGMA foreign_keys = ON`).
+- **Despliegue Local**: Scripts por lotes de Windows (.bat) para orquestación y respaldos.
 
 ---
 
-## 🚀 Puesta en Marcha Local
+## 🚀 Puesta en Marcha
 
-1. Instalar dependencias:
+### En la Computadora Servidora (Notebook Principal)
+1. **Instalar dependencias** (solo la primera vez):
    ```bash
    npm install
-   ```
-2. Iniciar servidor de desarrollo:
-   ```bash
-   npm run dev
-   ```
-   (o ejecutar `PRENDER_SERVIDOR.bat`)
-3. Compilar para producción:
-   ```bash
-   npm run build
-   ```
-
----
-
-## 📋 Guía de Auditoría para Gemini / Evaluador
-
-- **Control de Acceso (RBAC)**:
-  - Definición de tipos y permisos: [`src/types/auth.ts`](./src/types/auth.ts)
-  - Proveedor y contexto de autenticación: [`src/context/AuthContext.tsx`](./src/context/AuthContext.tsx)
-  - Control en barra de navegación: [`src/components/Navbar.tsx`](./src/components/Navbar.tsx)
-  - Ofuscación de costos y eliminación restringida: [`src/components/InventoryManager.tsx`](./src/components/InventoryManager.tsx) y [`src/services/dataService.ts`](./src/services/dataService.ts)
-  - Panel de ABM de vendedores y Consola SuperAdmin: [`src/components/AdminManager.tsx`](./src/components/AdminManager.tsx)
-- **Catálogo Predictivo**:
-  - Dataset vehicular: [`src/data/catalogoVehicular.ts`](./src/data/catalogoVehicular.ts)
-  - Componente Autocomplete: [`src/components/VehicleAutocomplete.tsx`](./src/components/VehicleAutocomplete.tsx)
-- **Seguridad en PostgreSQL**:
-  - Script SQL unificado: [`schema.sql`](./schema.sql)

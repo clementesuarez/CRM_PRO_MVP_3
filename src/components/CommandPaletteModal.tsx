@@ -27,6 +27,7 @@ interface CommandPaletteModalProps {
   onOpenQuotation?: () => void;
   onOpenAddVehiculo?: () => void;
   onOpenAddCliente?: () => void;
+  onOpenLoanCalculator?: () => void;
 }
 
 export const CommandPaletteModal: React.FC<CommandPaletteModalProps> = ({

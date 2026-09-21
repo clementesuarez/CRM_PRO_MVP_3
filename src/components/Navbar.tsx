@@ -28,6 +28,7 @@ interface NavbarProps {
   onOpenQuotation: () => void;
   onOpenCommandPalette?: () => void;
   onOpenVehicleMatchmaker?: () => void;
+  onOpenLoanCalculator?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -36,13 +37,14 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenQuotation,
   onOpenCommandPalette,
   onOpenVehicleMatchmaker,
+  onOpenLoanCalculator,
 }) => {
   const { currentRole, setRole, can, currentUser, logout, isAuthenticated } = useAuth();
   const [showRoleMenu, setShowRoleMenu] = useState(false);
 
   // If role is changed to vendedor and current tab is restricted, redirect to pipeline
   const handleRoleChange = (role: UserRole) => {
-    setRole(role);
+    if (setRole) setRole(role);
     setShowRoleMenu(false);
     if (role === 'vendedor' && (activeTab === 'pagares' || activeTab === 'admin' || activeTab === 'dashboard')) {
       setActiveTab('pipeline');

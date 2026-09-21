@@ -1,10 +1,10 @@
-import { 
-  Cliente, 
-  Inventario, 
-  Presupuesto, 
-  Permuta, 
-  Interaccion, 
-  EstadoPresupuesto, 
+import {
+  Cliente,
+  Inventario,
+  Presupuesto,
+  Permuta,
+  Interaccion,
+  EstadoPresupuesto,
   MotivoPerdida,
   DashboardMetrics,
   TipoMoneda,
@@ -21,26 +21,39 @@ import { getActiveRoleSync } from '../context/AuthContext';
 import { CatalogoVehiculoItem, CATALOGO_ARGENTINA, buscarEnCatalogo } from '../data/catalogoVehicular';
 import { parseDniPdf417, DniParsedResult } from '../utils/dniParser';
 
-// In-Memory Search Cache for Ultra-Fast Predictivo (<10ms)
+// Cache en memoria para búsquedas predictivas en catálogo
 const catalogoSearchCache = new Map<string, { timestamp: number; data: CatalogoVehiculoItem[] }>();
-const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutos
+const CACHE_TTL_MS = 5 * 60 * 1000;
 
-// Helper for HTTP API requests to local SQLite server
 async function apiRequest<T>(url: string, options?: RequestInit): Promise<T | null> {
   try {
+    const activeRole = getActiveRoleSync();
+    let activeUserId = '';
+    try {
+      const saved = localStorage.getItem('autocrm_session_user_mvp3');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed?.id) activeUserId = parsed.id;
+      }
+    } catch (e) {}
+
     const res = await fetch(url, {
-      headers: { 'Content-Type': 'application/json', ...(options?.headers || {}) },
+      headers: {
+        'Content-Type': 'application/json',
+        'x-user-role': activeRole,
+        'x-user-id': activeUserId,
+        ...(options?.headers || {})
+      },
       ...options,
     });
     if (!res.ok) return null;
     return await res.json();
   } catch (err) {
-    console.warn(`[dataService] Fallo API request ${url}, usando fallback local:`, err);
+    console.warn(`[dataService] Fallo en API request ${url}, usando fallback local:`, err);
     return null;
   }
 }
 
-// LocalStorage Keys for Offline Fallback
 const STORAGE_KEYS = {
   CLIENTES: 'agencia_crm_clientes',
   INVENTARIO: 'agencia_crm_inventario',
@@ -116,9 +129,9 @@ export const dataService = {
     return cliente;
   },
 
-  // INVENTARIO (VEHICULOS)
+  // INVENTARIO
   async getInventario(rol: UserRole = getActiveRoleSync()): Promise<Inventario[]> {
-    const remote = await apiRequest<Inventario[]>(`/api/vehiculos?rol=${rol}`);
+    const remote = await apiRequest<Inventario[]>(`/api/inventario?rol=${rol}`);
     if (remote) {
       setLocal(STORAGE_KEYS.INVENTARIO, remote);
       return remote;
@@ -132,7 +145,7 @@ export const dataService = {
   },
 
   async createVehiculo(vehiculo: Omit<Inventario, 'id' | 'created_at'>): Promise<Inventario> {
-    const remote = await apiRequest<Inventario>('/api/vehiculos', {
+    const remote = await apiRequest<Inventario>('/api/inventario', {
       method: 'POST',
       body: JSON.stringify(vehiculo)
     });
@@ -149,7 +162,7 @@ export const dataService = {
   },
 
   async updateVehiculo(vehiculo: Inventario, rol: UserRole = getActiveRoleSync()): Promise<Inventario> {
-    const remote = await apiRequest<Inventario>(`/api/vehiculos/${vehiculo.id}?rol=${rol}`, {
+    const remote = await apiRequest<Inventario>(`/api/inventario/${vehiculo.id}?rol=${rol}`, {
       method: 'PUT',
       body: JSON.stringify(vehiculo)
     });
@@ -168,7 +181,7 @@ export const dataService = {
   },
 
   async deleteVehiculo(id: string): Promise<boolean> {
-    const remote = await apiRequest<{ success: boolean }>(`/api/vehiculos/${id}`, {
+    const remote = await apiRequest<{ success: boolean }>(`/api/inventario/${id}`, {
       method: 'DELETE'
     });
     if (remote?.success) return true;
@@ -179,23 +192,27 @@ export const dataService = {
   },
 
   async updateEstadoVehiculo(id: string, estado: Inventario['estado']): Promise<void> {
-    await apiRequest(`/api/vehiculos/${id}/estado`, {
+    const normEstado = estado.toLowerCase() as Inventario['estado'];
+    await apiRequest(`/api/inventario/${id}/estado`, {
       method: 'PATCH',
-      body: JSON.stringify({ estado, fecha_venta: estado === 'Vendido' ? new Date().toISOString() : undefined })
+      body: JSON.stringify({
+        estado: normEstado,
+        fecha_venta: normEstado === 'vendido' ? new Date().toISOString().split('T')[0] : undefined
+      })
     });
 
     const current = getLocal<Inventario[]>(STORAGE_KEYS.INVENTARIO, []);
-    const updated = current.map(item => item.id === id ? { 
-      ...item, 
-      estado,
-      ...(estado === 'Vendido' ? { fecha_venta: new Date().toISOString() } : {})
+    const updated = current.map(item => item.id === id ? {
+      ...item,
+      estado: normEstado,
+      ...(normEstado === 'vendido' ? { fecha_venta: new Date().toISOString().split('T')[0] } : {})
     } : item);
     setLocal(STORAGE_KEYS.INVENTARIO, updated);
   },
 
-  // PRESUPUESTOS (COTIZACIONES)
+  // PRESUPUESTOS
   async getPresupuestos(rol: UserRole = getActiveRoleSync()): Promise<Presupuesto[]> {
-    const remote = await apiRequest<Presupuesto[]>(`/api/cotizaciones?rol=${rol}`);
+    const remote = await apiRequest<Presupuesto[]>(`/api/presupuestos?rol=${rol}`);
     if (remote) {
       setLocal(STORAGE_KEYS.PRESUPUESTOS, remote);
       return remote;
@@ -233,11 +250,13 @@ export const dataService = {
       precio_ofrecido: number;
       anticipo: number;
       saldo_financiado: number;
+      cant_cuotas?: number;
+      valor_cuota?: number;
       estado: EstadoPresupuesto;
     },
     permutaData?: Omit<Permuta, 'id' | 'presupuesto_id' | 'created_at'>
   ): Promise<Presupuesto> {
-    const remote = await apiRequest<Presupuesto>('/api/cotizaciones', {
+    const remote = await apiRequest<Presupuesto>('/api/presupuestos', {
       method: 'POST',
       body: JSON.stringify({ presupuesto: data, permuta: permutaData })
     });
@@ -286,15 +305,16 @@ export const dataService = {
   },
 
   async updateEstadoPresupuesto(
-    presupuestoId: string, 
-    nuevoEstado: EstadoPresupuesto, 
+    presupuestoId: string,
+    nuevoEstado: EstadoPresupuesto,
     motivoPerdida?: MotivoPerdida,
     fechaVenta?: string
   ): Promise<void> {
-    const saleDate = fechaVenta || new Date().toISOString();
-    await apiRequest(`/api/cotizaciones/${presupuestoId}/estado`, {
+    const normEstado = nuevoEstado.toLowerCase() as EstadoPresupuesto;
+    const saleDate = fechaVenta || new Date().toISOString().split('T')[0];
+    await apiRequest(`/api/presupuestos/${presupuestoId}/estado`, {
       method: 'PATCH',
-      body: JSON.stringify({ estado: nuevoEstado, motivo_perdida: motivoPerdida, fecha_venta: saleDate })
+      body: JSON.stringify({ estado: normEstado, motivo_perdida: motivoPerdida, fecha_venta: saleDate })
     });
 
     const presupuestos = getLocal<Presupuesto[]>(STORAGE_KEYS.PRESUPUESTOS, []);
@@ -306,22 +326,32 @@ export const dataService = {
     if (presIndex === -1) return;
 
     const presTarget = presupuestos[presIndex];
-    presTarget.estado = nuevoEstado;
+    presTarget.estado = normEstado;
     if (motivoPerdida) {
       presTarget.motivo_perdida = motivoPerdida;
     }
 
-    const isGanado = nuevoEstado.toLowerCase() === 'ganado';
-    const isPerdido = nuevoEstado.toLowerCase() === 'perdido';
+    const isGanado = normEstado === 'ganado';
+    const isPerdido = normEstado === 'perdido';
 
     if (isGanado) {
-      if (presTarget.vehiculo_id) {
-        const vehIndex = inventario.findIndex(v => v.id === presTarget.vehiculo_id);
+      const vIds = new Set<string>();
+      if (presTarget.vehiculo_id) vIds.add(presTarget.vehiculo_id);
+      if (presTarget.vehiculos_cotizados && Array.isArray(presTarget.vehiculos_cotizados)) {
+        presTarget.vehiculos_cotizados.forEach((v: any) => {
+          if (typeof v === 'string') vIds.add(v);
+          else if (v && v.id) vIds.add(v.id);
+          else if (v && v.vehiculo_id) vIds.add(v.vehiculo_id);
+        });
+      }
+
+      vIds.forEach(vId => {
+        const vehIndex = inventario.findIndex(v => v.id === vId);
         if (vehIndex !== -1) {
-          inventario[vehIndex].estado = 'Vendido';
+          inventario[vehIndex].estado = 'vendido';
           inventario[vehIndex].fecha_venta = saleDate;
         }
-      }
+      });
 
       const cliIndex = clientes.findIndex(c => c.id === presTarget.cliente_id);
       if (cliIndex !== -1) {
@@ -330,23 +360,26 @@ export const dataService = {
 
       const permutaAsociada = permutas.find(pm => pm.presupuesto_id === presupuestoId);
       if (permutaAsociada) {
-        const parts = permutaAsociada.marca_modelo.split(' ');
-        const marca = parts[0] || 'Usado';
-        const modelo = parts.slice(1).join(' ') || 'Permuta';
+        const marca = permutaAsociada.marca || (permutaAsociada as any).marca_modelo?.split(' ')[0] || 'Usado';
+        const modelo = permutaAsociada.modelo || (permutaAsociada as any).marca_modelo?.split(' ').slice(1).join(' ') || 'Permuta';
 
         const nuevaUnidad: Inventario = {
           id: 'v_' + Date.now(),
-          patente: permutaAsociada.patente?.toUpperCase() || ('PER-' + Math.floor(Math.random()*1000)),
+          patente: permutaAsociada.patente?.toUpperCase() || ('PER-' + Math.floor(Math.random() * 1000)),
           marca,
           modelo,
+          version: permutaAsociada.version,
           anio: permutaAsociada.anio,
           kilometraje: permutaAsociada.kilometraje,
           es_cero_km: false,
           moneda: permutaAsociada.moneda || 'USD',
-          precio_lista: Math.round(permutaAsociada.valor_tasacion * 1.15),
+          precio_lista: Math.round(permutaAsociada.valor_tasacion * 1.18),
           costo_compra: permutaAsociada.valor_tasacion,
-          estado: 'Reacondicionamiento',
-          observaciones: `Ingresado por permuta de presupuesto #${presupuestoId}. Notas: ${permutaAsociada.observaciones || 'Sin notas'}`,
+          estado: 'reacondicionamiento',
+          fecha_ingreso: new Date().toISOString().split('T')[0],
+          origen_stock: 'Permuta',
+          origen_transaccion: 'Toma en Permuta por Venta',
+          observaciones: `Tomado en permuta por cotización #${presupuestoId}. ${permutaAsociada.observaciones || ''}`.trim(),
           created_at: new Date().toISOString(),
         };
         inventario.unshift(nuevaUnidad);
@@ -410,7 +443,7 @@ export const dataService = {
     return newInteraccion;
   },
 
-  // AUTENTICACIÓN Y ROLES
+  // AUTENTICACIÓN
   async loginUser(usuario: string, password: string): Promise<{ success: boolean; user?: PerfilUsuario; error?: string }> {
     try {
       const res = await fetch('/api/auth/login', {
@@ -423,8 +456,8 @@ export const dataService = {
         return { success: false, error: data.error || 'Credenciales inválidas' };
       }
       return { success: true, user: data.user };
-    } catch (e: any) {
-      return { success: false, error: 'Error de red o conexión con la API local SQLite' };
+    } catch {
+      return { success: false, error: 'Error de conexión con la API local SQLite' };
     }
   },
 
@@ -440,7 +473,7 @@ export const dataService = {
         return { success: false, error: data.error || 'Error al generar respaldo' };
       }
       return data;
-    } catch (e: any) {
+    } catch {
       return { success: false, error: 'Error de red al invocar el respaldo' };
     }
   },
@@ -453,7 +486,7 @@ export const dataService = {
         return { success: false, error: data.error || 'Error al crear punto de restauración' };
       }
       return data;
-    } catch (e: any) {
+    } catch {
       return { success: false, error: 'Error de red al crear punto de restauración' };
     }
   },
@@ -470,12 +503,12 @@ export const dataService = {
         return { success: false, error: data.error || 'Error al restaurar base de datos' };
       }
       return data;
-    } catch (e: any) {
+    } catch {
       return { success: false, error: 'Error de red al restaurar copia de resguardo' };
     }
   },
 
-  // USUARIOS & ROLES (MÓDULO DE USUARIOS ADMIN)
+  // USUARIOS
   async getUsuarios(): Promise<PerfilUsuario[]> {
     const remote = await apiRequest<PerfilUsuario[]>('/api/usuarios');
     if (remote) {
@@ -542,7 +575,6 @@ export const dataService = {
     return remote?.success ?? true;
   },
 
-  // IMPORT BACKUP
   async importData(data: { clientes?: Cliente[]; inventario?: Inventario[] }): Promise<void> {
     if (data.clientes) {
       const current = getLocal<Cliente[]>(STORAGE_KEYS.CLIENTES, []);
@@ -554,8 +586,11 @@ export const dataService = {
     }
   },
 
-  // TABLERO DIRECTIVO & METRICAS (5 PANELES)
+  // METRICAS DEL DASHBOARD
   async getDashboardMetrics(): Promise<DashboardMetrics> {
+    const remote = await apiRequest<DashboardMetrics>('/api/dashboard/metrics');
+    if (remote) return remote;
+
     const clientes = await this.getClientes();
     const inventario = await this.getInventario();
     const presupuestos = await this.getPresupuestos();
@@ -566,15 +601,14 @@ export const dataService = {
     const ganados = presupuestos.filter(p => p.estado.toLowerCase() === 'ganado').length;
     const perdidos = presupuestos.filter(p => p.estado.toLowerCase() === 'perdido').length;
 
-    const tasaConversion = (ganados + perdidos) > 0 
-      ? Math.round((ganados / (ganados + perdidos)) * 100) 
+    const tasaConversion = (ganados + perdidos) > 0
+      ? Math.round((ganados / (ganados + perdidos)) * 100)
       : 0;
 
     const stockDisponible = inventario.filter(v => v.estado.toLowerCase() === 'disponible');
     const valorTotalStockUSD = stockDisponible.filter(v => v.moneda === 'USD' || !v.moneda).reduce((sum, v) => sum + (v.precio_lista || 0), 0);
     const valorTotalStockARS = stockDisponible.filter(v => v.moneda === 'ARS').reduce((sum, v) => sum + (v.precio_lista || 0), 0);
 
-    // Panel 4: Pérdida de Ventas
     const motivosMap: Record<string, number> = {};
     presupuestos.forEach(p => {
       if (p.estado.toLowerCase() === 'perdido' && p.motivo_perdida) {
@@ -587,12 +621,10 @@ export const dataService = {
       cantidad,
     }));
 
-    // Fechas de referencia
     const now = new Date();
     const currentYear = now.getFullYear();
-    const currentMonth = now.getMonth(); // 0-indexed
+    const currentMonth = now.getMonth();
 
-    // Panel 1: Cotizaciones (Volumen mes actual, comparativa mes anterior, desvío promedio anual)
     const cotizacionesMesActual = presupuestos.filter(p => {
       const d = new Date(p.created_at);
       return d.getFullYear() === currentYear && d.getMonth() === currentMonth;
@@ -608,15 +640,14 @@ export const dataService = {
     const mesesTranscurridos = Math.max(1, currentMonth + 1);
     const promedioMensualAnio = cotizacionesAnio / mesesTranscurridos;
 
-    const comparativaCotizacionesPct = cotizacionesMesAnterior > 0 
+    const comparativaCotizacionesPct = cotizacionesMesAnterior > 0
       ? Math.round(((cotizacionesMesActual - cotizacionesMesAnterior) / cotizacionesMesAnterior) * 100)
       : (cotizacionesMesActual > 0 ? 100 : 0);
 
-    const desvioPromedioAnualPct = promedioMensualAnio > 0 
+    const desvioPromedioAnualPct = promedioMensualAnio > 0
       ? Math.round(((cotizacionesMesActual - promedioMensualAnio) / promedioMensualAnio) * 100)
       : 0;
 
-    // Panel 2: Rotación de Stock (Promedio de días desde fecha_ingreso hasta fecha_venta)
     const autosVendidosList = inventario.filter(v => v.estado.toLowerCase() === 'vendido');
     let totalDiasRotacion = 0;
     let unidadesAnalizadas = 0;
@@ -633,11 +664,10 @@ export const dataService = {
       }
     });
 
-    const promedioDiasStock = unidadesAnalizadas > 0 
-      ? Math.round(totalDiasRotacion / unidadesAnalizadas) 
-      : 24; // Default fallback
+    const promedioDiasStock = unidadesAnalizadas > 0
+      ? Math.round(totalDiasRotacion / unidadesAnalizadas)
+      : 24;
 
-    // Panel 3: Ventas (Unidades vendidas mes corriente vs. mes anterior vs. mismo mes año anterior)
     const ventasMesCorriente = autosVendidosList.filter(v => {
       const d = new Date(v.fecha_venta || v.created_at);
       return d.getFullYear() === currentYear && d.getMonth() === currentMonth;
@@ -653,17 +683,14 @@ export const dataService = {
       return d.getFullYear() === (currentYear - 1) && d.getMonth() === currentMonth;
     }).length;
 
-    // Panel 5: Métricas de Pagarés (Monto promedio, tasa endeudamiento %, días de mora promedio)
     const totalCuotasCount = cuotas.length;
     const totalMontoCuotas = cuotas.reduce((sum, c) => sum + (c.monto_cuota || c.monto_pagado || 0), 0);
     const montoPromedioPagare = totalCuotasCount > 0 ? Math.round(totalMontoCuotas / totalCuotasCount) : 0;
 
-    // Tasa de endeudamiento: Suma de saldo_financiado / Suma de precio_ofrecido en cotizaciones
     const totalPrecioCotizado = presupuestos.reduce((sum, p) => sum + (p.precio_ofrecido || 0), 0);
     const totalSaldoFinanciado = presupuestos.reduce((sum, p) => sum + (p.saldo_financiado || 0), 0);
     const tasaEndeudamientoPct = totalPrecioCotizado > 0 ? Math.round((totalSaldoFinanciado / totalPrecioCotizado) * 100) : 0;
 
-    // Días de mora promedio en cuotas vencidas
     const hoyMs = Date.now();
     let totalMoraDias = 0;
     let cuotasVencidasCount = 0;
@@ -726,7 +753,7 @@ export const dataService = {
     };
   },
 
-  // PEDIDOS ENCARGO (RADAR)
+  // ENCARGOS
   async getPedidosEncargo(): Promise<PedidoEncargo[]> {
     const remote = await apiRequest<PedidoEncargo[]>('/api/pedidos-encargo');
     if (remote) {
@@ -761,18 +788,26 @@ export const dataService = {
   },
 
   async updatePedidoEncargoEstado(id: string, estado: EstadoPedidoEncargo): Promise<void> {
+    await apiRequest(`/api/pedidos-encargo/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify({ estado })
+    });
     const list = getLocal<PedidoEncargo[]>(STORAGE_KEYS.PEDIDOS_ENCARGO, []);
     const updated = list.map(e => e.id === id ? { ...e, estado } : e);
     setLocal(STORAGE_KEYS.PEDIDOS_ENCARGO, updated);
   },
 
   async linkPedidoEncargoVehiculo(encargoId: string, vehiculoId: string): Promise<void> {
+    await apiRequest(`/api/pedidos-encargo/${encargoId}`, {
+      method: 'PUT',
+      body: JSON.stringify({ vehiculo_coincidente_id: vehiculoId, estado: 'Unidad Localizada' })
+    });
     const list = getLocal<PedidoEncargo[]>(STORAGE_KEYS.PEDIDOS_ENCARGO, []);
     const updated = list.map(e => e.id === encargoId ? { ...e, vehiculo_coincidente_id: vehiculoId, estado: 'Unidad Localizada' as EstadoPedidoEncargo } : e);
     setLocal(STORAGE_KEYS.PEDIDOS_ENCARGO, updated);
   },
 
-  // PRESTAMOS & PAGARÉS
+  // PAGARÉS
   async getPrestamosPagares(rol: UserRole = getActiveRoleSync()): Promise<PrestamoPagare[]> {
     if (rol === 'vendedor') return [];
     const remote = await apiRequest<PrestamoPagare[]>(`/api/pagares?rol=${rol}`);
@@ -870,12 +905,12 @@ export const dataService = {
   },
 
   async updateCuotaDetails(
-    cuotaId: string, 
-    data: { 
-      fecha_vencimiento?: string; 
-      numero_pagare?: string; 
-      monto_cuota?: number; 
-      observaciones?: string; 
+    cuotaId: string,
+    data: {
+      fecha_vencimiento?: string;
+      numero_pagare?: string;
+      monto_cuota?: number;
+      observaciones?: string;
       estado?: EstadoCuota;
       comprobante_pago?: string;
       fecha_pago?: string;
@@ -931,7 +966,7 @@ export const dataService = {
     return newReclamo;
   },
 
-  // HERRAMIENTAS DE DIAGNÓSTICO SQL LOCAL
+  // DIAGNÓSTICO
   async testSupabaseDiagnostic(): Promise<{
     configured: boolean;
     connected: boolean;
@@ -954,14 +989,14 @@ export const dataService = {
         latencyMs,
         tables: [
           { name: 'clientes (SQLite)', status: 'ok', count: clientes.length },
-          { name: 'vehiculos (SQLite)', status: 'ok', count: vehiculos.length },
-          { name: 'cotizaciones (SQLite)', status: 'ok', count: cotizaciones.length },
+          { name: 'inventario (SQLite)', status: 'ok', count: vehiculos.length },
+          { name: 'presupuestos (SQLite)', status: 'ok', count: cotizaciones.length },
           { name: 'pagares (SQLite)', status: 'ok', count: cuotas.length },
           { name: 'usuarios (SQLite)', status: 'ok', count: usuarios.length },
         ],
         supabaseUrl: 'SQLite Local DB (crm_local.db)'
       };
-    } catch (e: any) {
+    } catch {
       return {
         configured: true,
         connected: false,
@@ -972,7 +1007,7 @@ export const dataService = {
     }
   },
 
-  // CATÁLOGO VEHICULAR Y BÚSQUEDA PREDICTIVA
+  // CATÁLOGO
   async searchCatalogo(query: string): Promise<CatalogoVehiculoItem[]> {
     const cleanQuery = (query || '').trim();
     if (cleanQuery.length < 2) return [];

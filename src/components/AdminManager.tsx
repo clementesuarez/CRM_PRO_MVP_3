@@ -694,7 +694,11 @@ export const AdminManager: React.FC<AdminManagerProps> = ({
                   </thead>
                   <tbody className="divide-y divide-slate-800/60">
                     {usuarios.map((u) => {
-                      const meta = ROLE_LABELS[u.rol];
+                      const meta = ROLE_LABELS[u.rol] || { label: u.rol, badge: u.rol, color: 'bg-slate-800 text-slate-400 border-slate-700', desc: '' };
+                      const isCurrentUserSuperAdmin = currentRole === 'superadmin' || currentRole === 'dev';
+                      const isTargetProtected = u.rol === 'superadmin' || u.rol === 'dev';
+                      const canManageTarget = isCurrentUserSuperAdmin || !isTargetProtected;
+
                       return (
                         <tr key={u.id} className="hover:bg-slate-900/40 transition">
                           <td className="p-3 font-semibold text-white flex items-center gap-2">
@@ -721,39 +725,48 @@ export const AdminManager: React.FC<AdminManagerProps> = ({
                             </span>
                           </td>
                           <td className="p-3 text-right">
-                            <div className="flex items-center justify-end gap-2">
-                              <select
-                                value={u.rol}
-                                onChange={(e) => updateUsuario(u.id, { rol: e.target.value as UserRole })}
-                                className="bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-[11px] text-slate-200 focus:outline-none focus:border-cyan-500"
-                              >
-                                <option value="vendedor">Vendedor</option>
-                                <option value="admin">Admin</option>
-                                <option value="superadmin">SuperAdmin</option>
-                              </select>
+                            {canManageTarget ? (
+                              <div className="flex items-center justify-end gap-2">
+                                <select
+                                  value={u.rol}
+                                  onChange={(e) => updateUsuario(u.id, { rol: e.target.value as UserRole })}
+                                  className="bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-[11px] text-slate-200 focus:outline-none focus:border-cyan-500 font-medium"
+                                >
+                                  <option value="vendedor">Vendedor</option>
+                                  <option value="admin">Admin</option>
+                                  {isCurrentUserSuperAdmin && <option value="superadmin">SuperAdmin</option>}
+                                </select>
 
-                              <button
-                                type="button"
-                                onClick={() => handleOpenResetModal(u.id, u.nombre)}
-                                className="px-2.5 py-1 rounded-lg font-bold text-[11px] bg-amber-950/40 text-amber-300 hover:bg-amber-900/60 border border-amber-500/30 transition flex items-center gap-1"
-                                title="Blanquear / Restablecer Contraseña"
-                              >
-                                <KeyRound className="w-3.5 h-3.5" />
-                                Clave
-                              </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenResetModal(u.id, u.nombre)}
+                                  className="px-2.5 py-1 rounded-lg font-bold text-[11px] bg-amber-950/40 text-amber-300 hover:bg-amber-900/60 border border-amber-500/30 transition flex items-center gap-1"
+                                  title="Blanquear / Restablecer Contraseña"
+                                >
+                                  <KeyRound className="w-3.5 h-3.5" />
+                                  Clave
+                                </button>
 
-                              <button
-                                type="button"
-                                onClick={() => toggleUsuarioActivo(u.id)}
-                                className={`px-2.5 py-1 rounded-lg font-bold text-[11px] transition ${
-                                  u.activo 
-                                    ? 'bg-rose-950/40 text-rose-400 hover:bg-rose-900/60 border border-rose-500/30' 
-                                    : 'bg-emerald-950/40 text-emerald-400 hover:bg-emerald-900/60 border border-emerald-500/30'
-                                }`}
-                              >
-                                {u.activo ? 'Desactivar' : 'Activar'}
-                              </button>
-                            </div>
+                                <button
+                                  type="button"
+                                  onClick={() => toggleUsuarioActivo(u.id)}
+                                  className={`px-2.5 py-1 rounded-lg font-bold text-[11px] transition ${
+                                    u.activo 
+                                      ? 'bg-rose-950/40 text-rose-400 hover:bg-rose-900/60 border border-rose-500/30' 
+                                      : 'bg-emerald-950/40 text-emerald-400 hover:bg-emerald-900/60 border border-emerald-500/30'
+                                  }`}
+                                >
+                                  {u.activo ? 'Desactivar' : 'Activar'}
+                                </button>
+                              </div>
+                            ) : (
+                              <div className="flex items-center justify-end">
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg font-extrabold text-[11px] bg-amber-950/30 text-amber-400 border border-amber-500/30 select-none">
+                                  <ShieldAlert className="w-3.5 h-3.5 text-amber-400" />
+                                  Protegido (Sistema/Dev)
+                                </span>
+                              </div>
+                            )}
                           </td>
                         </tr>
                       );
@@ -844,7 +857,9 @@ export const AdminManager: React.FC<AdminManagerProps> = ({
                         >
                           <option value="vendedor">Vendedor (Solo precio de lista, sin costos ni pagarés)</option>
                           <option value="admin">Admin (Dueño - Control total, márgenes y pagarés)</option>
-                          <option value="superadmin">SuperAdmin (Dev - Diagnósticos técnicos y consola)</option>
+                          {(currentRole === 'superadmin' || currentRole === 'dev') && (
+                            <option value="superadmin">SuperAdmin (Dev - Diagnósticos técnicos y consola)</option>
+                          )}
                         </select>
                       </div>
 

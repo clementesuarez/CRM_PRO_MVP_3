@@ -12,25 +12,26 @@ import { PagaresManager } from './components/PagaresManager';
 import { InteractionModal } from './components/InteractionModal';
 import { CommandPaletteModal } from './components/CommandPaletteModal';
 import { VehicleMatchmakerModal } from './components/VehicleMatchmakerModal';
+import { LoanCalculatorModal } from './components/LoanCalculatorModal';
 import { WhatsAppModal } from './components/WhatsAppModal';
 import { dataService } from './services/dataService';
 import { useAuth } from './context/AuthContext';
-import { 
-  Cliente, 
-  Inventario, 
-  Presupuesto, 
-  Interaccion, 
-  DashboardMetrics, 
-  EstadoPresupuesto, 
-  MotivoPerdida 
+import {
+  Cliente,
+  Inventario,
+  Presupuesto,
+  Interaccion,
+  DashboardMetrics,
+  EstadoPresupuesto,
+  MotivoPerdida
 } from './types/crm';
 import { LoginView } from './components/LoginView';
-import { RefreshCw, AlertTriangle } from 'lucide-react';
+import { RefreshCw, AlertTriangle, Database } from 'lucide-react';
 
 export const App: React.FC = () => {
   const { currentRole, can, isAuthenticated } = useAuth();
   const [activeTab, setActiveTab] = useState<TabType>('pipeline');
-  
+
   // Data States
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [inventario, setInventario] = useState<Inventario[]>([]);
@@ -44,16 +45,22 @@ export const App: React.FC = () => {
   // Modals
   const [quotationModalOpen, setQuotationModalOpen] = useState(false);
   const [presupuestoToEdit, setPresupuestoToEdit] = useState<Presupuesto | null>(null);
-  
-  // New Ultra-Speed UX Modals
+
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [vehicleMatchmakerOpen, setVehicleMatchmakerOpen] = useState(false);
-  const [wspModalData, setWspModalData] = useState<{ open: boolean; phone: string; name: string; vehicle: string; price: string }>({ open: false, phone: '', name: '', vehicle: '', price: '' });
+  const [loanCalculatorOpen, setLoanCalculatorOpen] = useState(false);
+
+  const [wspModalData, setWspModalData] = useState<{
+    open: boolean;
+    phone: string;
+    name: string;
+    vehicle: string;
+    price: string;
+  }>({ open: false, phone: '', name: '', vehicle: '', price: '' });
 
   // Interaction Modal State
   const [interactionModalOpen, setInteractionModalOpen] = useState(false);
   const [activeInteractionTarget, setActiveInteractionTarget] = useState<{ id: string; nombre: string } | null>(null);
-  const [selectedClienteIdForModal, setSelectedClienteIdForModal] = useState<string | null>(null);
 
   const handleOpenNewQuotation = () => {
     setPresupuestoToEdit(null);
@@ -88,18 +95,20 @@ export const App: React.FC = () => {
       setInteracciones(intData);
       setMetrics(metData);
     } catch (err: any) {
-      console.error('Error loading CRM data:', err);
-      setError('Error de carga. Asegúrate de verificar tu conexión.');
+      console.error('Error al cargar datos locales:', err);
+      setError('Error al consultar el servidor local SQLite. Asegúrate de que el backend Express esté iniciado.');
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    loadAllData();
-  }, [currentRole]);
+    if (isAuthenticated) {
+      loadAllData();
+    }
+  }, [currentRole, isAuthenticated]);
 
-  // Guard reactivo de pestañas restringidas según matriz RBAC
+  // Guard reactivo de pestañas según permisos RBAC
   useEffect(() => {
     if (activeTab === 'pagares' && !can('gestionar_pagares')) {
       setActiveTab('pipeline');
@@ -111,19 +120,6 @@ export const App: React.FC = () => {
       setActiveTab('pipeline');
     }
   }, [currentRole, activeTab, can]);
-
-  const handleDeleteVehiculo = async (id: string) => {
-    if (!window.confirm('¿Confirmas que deseas eliminar esta unidad del stock?')) return;
-    try {
-      const ok = await dataService.deleteVehiculo(id);
-      if (ok) {
-        setInventario((prev) => prev.filter((v) => v.id !== id));
-      }
-    } catch (err) {
-      console.error('Error al eliminar vehículo:', err);
-      alert('No se pudo eliminar el vehículo.');
-    }
-  };
 
   const handleSaveQuotation = async (
     presupuestoData: any,
@@ -206,16 +202,15 @@ export const App: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">
-      {/* Navbar Header */}
       <Navbar
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         onOpenQuotation={handleOpenNewQuotation}
         onOpenCommandPalette={() => setCommandPaletteOpen(true)}
+        onOpenLoanCalculator={() => setLoanCalculatorOpen(true)}
         onOpenVehicleMatchmaker={() => setVehicleMatchmakerOpen(true)}
       />
 
-      {/* Main Content Body */}
       <main className="flex-1 max-w-[1600px] w-full mx-auto p-3 sm:p-5 lg:p-6 space-y-6">
         {loading ? (
           <div className="space-y-6 animate-pulse">
@@ -232,7 +227,7 @@ export const App: React.FC = () => {
             <h3 className="text-base font-bold text-slate-100">{error}</h3>
             <button
               onClick={loadAllData}
-              className="px-5 py-2.5 rounded-xl bg-cyan-500 text-slate-950 font-bold text-xs inline-flex items-center gap-2 hover:bg-cyan-400"
+              className="px-5 py-2.5 rounded-xl bg-cyan-500 text-slate-950 font-bold text-xs inline-flex items-center gap-2 hover:bg-cyan-400 transition"
             >
               <RefreshCw className="w-4 h-4" /> Reintentar Carga
             </button>
@@ -253,8 +248,6 @@ export const App: React.FC = () => {
               <ClientesManager
                 clientes={clientes}
                 interacciones={interacciones}
-                selectedClienteIdForModal={selectedClienteIdForModal}
-                onClearSelectedClienteId={() => setSelectedClienteIdForModal(null)}
                 onAddCliente={handleAddCliente}
                 onUpdateCliente={handleUpdateCliente}
                 onStartQuotationForClient={handleOpenNewQuotation}
@@ -268,7 +261,6 @@ export const App: React.FC = () => {
                 clientes={clientes}
                 onAddVehiculo={handleAddVehiculo}
                 onUpdateVehiculo={handleUpdateVehiculo}
-                onDeleteVehiculo={handleDeleteVehiculo}
                 onUpdateEstadoVehiculo={handleUpdateEstadoVehiculo}
                 onStartQuotationForVehicle={handleOpenNewQuotation}
               />
@@ -282,10 +274,7 @@ export const App: React.FC = () => {
                 inventario={inventario}
                 onOpenInteractionModal={handleOpenInteractionModal}
                 onStartQuotationForClient={handleOpenNewQuotation}
-                onViewClientProfile={(clienteId) => {
-                  setSelectedClienteIdForModal(clienteId);
-                  setActiveTab('clientes');
-                }}
+                onViewClientProfile={() => setActiveTab('clientes')}
               />
             )}
 
@@ -313,7 +302,6 @@ export const App: React.FC = () => {
         )}
       </main>
 
-      {/* Status Footer */}
       <footer className="border-t border-slate-900 bg-slate-950/90 px-4 lg:px-8 py-3 text-xs text-slate-400 mt-auto">
         <div className="max-w-[1600px] mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
           <div className="flex items-center gap-2">
@@ -321,20 +309,23 @@ export const App: React.FC = () => {
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
               <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
             </span>
-            <span className="font-bold text-slate-200">Servidor Local & Cloud: <span className="text-emerald-400 font-mono">ONLINE / ACTIVO</span></span>
+            <span className="font-bold text-slate-200">
+              Servidor Local SQLite: <span className="text-emerald-400 font-mono">crm_local.db (ONLINE)</span>
+            </span>
             <span className="text-slate-600">|</span>
-            <span className="text-slate-400">Puerto HTTP: <strong className="text-cyan-400 font-mono">5173</strong></span>
+            <span className="text-slate-400">Puerto API: <strong className="text-cyan-400 font-mono">5000</strong></span>
           </div>
 
           <div className="flex items-center gap-4 text-[11px] text-slate-400">
-            <span>Base de Datos Comercial: <strong className="text-cyan-300">Sincronizada ({clientes.length} Clientes)</strong></span>
+            <span>Base Local: <strong className="text-cyan-300 font-mono">{clientes.length} Clientes / {inventario.length} Unidades</strong></span>
             <span>•</span>
-            <span>Resguardo de Backup: <strong className="text-purple-300">Administración OK</strong></span>
+            <span className="inline-flex items-center gap-1 text-emerald-400">
+              <Database className="w-3.5 h-3.5" /> Modo WAL Activo
+            </span>
           </div>
         </div>
       </footer>
 
-      {/* GLOBAL QUOTATION & TRADE-IN MODAL */}
       <QuotationBuilder
         isOpen={quotationModalOpen}
         onClose={() => setQuotationModalOpen(false)}
@@ -344,7 +335,6 @@ export const App: React.FC = () => {
         onSaveQuotation={handleSaveQuotation}
       />
 
-      {/* GLOBAL INTERACTION & FOLLOW-UP MODAL */}
       <InteractionModal
         isOpen={interactionModalOpen}
         onClose={() => setInteractionModalOpen(false)}
@@ -360,7 +350,6 @@ export const App: React.FC = () => {
         }}
       />
 
-      {/* ULTRA-SPEED COMMAND PALETTE (CTRL + K) */}
       <CommandPaletteModal
         isOpen={commandPaletteOpen}
         onClose={() => setCommandPaletteOpen(false)}
@@ -368,15 +357,15 @@ export const App: React.FC = () => {
         inventario={inventario}
         presupuestos={presupuestos}
         onOpenQuotation={handleOpenNewQuotation}
+        onOpenLoanCalculator={() => setLoanCalculatorOpen(true)}
       />
 
-      {/* VEHICLE MATCHMAKER MODAL */}
       <VehicleMatchmakerModal
         isOpen={vehicleMatchmakerOpen}
         onClose={() => setVehicleMatchmakerOpen(false)}
         clientes={clientes}
         inventario={inventario}
-        onStartQuotationForClientAndVehicle={(clienteId, vehiculoId) => {
+        onStartQuotationForClientAndVehicle={() => {
           setPresupuestoToEdit(null);
           setQuotationModalOpen(true);
         }}
@@ -385,7 +374,11 @@ export const App: React.FC = () => {
         }}
       />
 
-      {/* WSP PROPOSAL MODAL */}
+      <LoanCalculatorModal
+        isOpen={loanCalculatorOpen}
+        onClose={() => setLoanCalculatorOpen(false)}
+      />
+
       {wspModalData.open && (
         <WhatsAppModal
           isOpen={wspModalData.open}

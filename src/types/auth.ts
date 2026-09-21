@@ -1,4 +1,4 @@
-export type UserRole = 'vendedor' | 'admin' | 'superadmin';
+export type UserRole = 'vendedor' | 'admin' | 'superadmin' | 'dev';
 
 export interface PerfilUsuario {
   id: string;
@@ -48,6 +48,17 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'gestionar_usuarios',
     'consola_superadmin',
   ],
+  dev: [
+    'crear_prospecto',
+    'crear_presupuesto',
+    'ver_inventario_lista',
+    'ver_costos',
+    'editar_costos',
+    'eliminar_vehiculo',
+    'gestionar_pagares',
+    'gestionar_usuarios',
+    'consola_superadmin',
+  ],
 };
 
 export const ROLE_LABELS: Record<UserRole, { label: string; badge: string; color: string; desc: string }> = {
@@ -68,5 +79,11 @@ export const ROLE_LABELS: Record<UserRole, { label: string; badge: string; color
     badge: 'Dev / SuperAdmin',
     color: 'bg-purple-500/20 text-purple-400 border-purple-500/30',
     desc: 'Acceso irrestricto, diagnósticos en vivo de Supabase, tablas, RLS y soporte técnico.',
+  },
+  dev: {
+    label: 'Dev Team / Sistema',
+    badge: 'Dev Team',
+    color: 'bg-purple-500/20 text-purple-400 border-purple-500/30',
+    desc: 'Acceso irrestricto de desarrollo y mantenimiento técnico.',
   },
 };

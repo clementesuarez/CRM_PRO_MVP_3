@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ShieldCheck, Lock, User, KeyRound, ArrowRight, AlertCircle, Sparkles, Database } from 'lucide-react';
+import { ShieldCheck, Lock, User, KeyRound, ArrowRight, AlertCircle, Database } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 export const LoginView: React.FC = () => {
@@ -20,23 +20,6 @@ export const LoginView: React.FC = () => {
 
     try {
       const result = await login(usuarioInput.trim(), passwordInput.trim());
-      if (!result.success) {
-        setErrorMsg(result.error || 'Credenciales inválidas. Verifica los datos ingresados.');
-      }
-    } catch (err: any) {
-      setErrorMsg('Error de conexión con la API de autenticación.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleQuickFill = async (user: string, pass: string) => {
-    setUsuarioInput(user);
-    setPasswordInput(pass);
-    setErrorMsg('');
-    setLoading(true);
-    try {
-      const result = await login(user, pass);
       if (!result.success) {
         setErrorMsg(result.error || 'Credenciales inválidas. Verifica los datos ingresados.');
       }
@@ -140,41 +123,6 @@ export const LoginView: React.FC = () => {
             </button>
           </form>
 
-          {/* Quick Access Demo Pills */}
-          <div className="pt-4 border-t border-slate-800/80 space-y-2.5">
-            <span className="text-[11px] text-slate-400 font-bold block flex items-center gap-1">
-              <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-              Acceso Rápido de Prueba (Credenciales SQLite):
-            </span>
-            <div className="grid grid-cols-3 gap-2">
-              <button
-                type="button"
-                onClick={() => handleQuickFill('admin', 'admin123')}
-                className="p-2 rounded-xl bg-cyan-950/40 border border-cyan-500/30 text-[10px] text-cyan-300 hover:bg-cyan-900/50 transition font-medium text-left"
-              >
-                <strong className="block font-bold text-white">Admin</strong>
-                <span className="font-mono text-[9px]">admin / admin123</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleQuickFill('vendedor', 'vendedor123')}
-                className="p-2 rounded-xl bg-slate-900 border border-slate-700/60 text-[10px] text-slate-300 hover:bg-slate-800 transition font-medium text-left"
-              >
-                <strong className="block font-bold text-white">Vendedor</strong>
-                <span className="font-mono text-[9px]">vendedor / vendedor123</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleQuickFill('superadmin', 'superadmin123')}
-                className="p-2 rounded-xl bg-purple-950/40 border border-purple-500/30 text-[10px] text-purple-300 hover:bg-purple-900/50 transition font-medium text-left"
-              >
-                <strong className="block font-bold text-white">SuperAdmin</strong>
-                <span className="font-mono text-[9px]">superadmin / superadmin123</span>
-              </button>
-            </div>
-          </div>
         </div>
 
         {/* Footer info */}

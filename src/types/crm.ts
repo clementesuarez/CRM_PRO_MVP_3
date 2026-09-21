@@ -9,14 +9,22 @@ export type EstadoVehiculo =
   | 'Disponible' 
   | 'Reservado' 
   | 'Vendido' 
-  | 'Reacondicionamiento';
+  | 'Reacondicionamiento'
+  | 'disponible'
+  | 'reservado'
+  | 'vendido'
+  | 'reacondicionamiento';
 
 export type EstadoPresupuesto = 
   | 'Borrador' 
   | 'Enviado' 
   | 'Ganado' 
   | 'Perdido' 
-  | 'No Responde llamado';
+  | 'No Responde llamado'
+  | 'borrador'
+  | 'enviado'
+  | 'ganado'
+  | 'perdido';
 
 export type MotivoPerdida = 
   | 'Precio alto' 
