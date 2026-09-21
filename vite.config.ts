@@ -2,6 +2,7 @@ import { defineConfig, Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
 import express from 'express';
+import cors from 'cors';
 import { router as apiRouter } from './server/api.js';
 
 function sqliteApiPlugin(): Plugin {
@@ -9,13 +10,17 @@ function sqliteApiPlugin(): Plugin {
     name: 'sqlite-api-plugin',
     configureServer(server) {
       const app = express();
-      app.use(express.json());
+      app.use(cors());
+      app.use(express.json({ limit: '50mb' }));
+      app.use(express.urlencoded({ extended: true, limit: '50mb' }));
       app.use('/api', apiRouter);
       server.middlewares.use(app);
     },
     configurePreviewServer(server) {
       const app = express();
-      app.use(express.json());
+      app.use(cors());
+      app.use(express.json({ limit: '50mb' }));
+      app.use(express.urlencoded({ extended: true, limit: '50mb' }));
       app.use('/api', apiRouter);
       server.middlewares.use(app);
     }

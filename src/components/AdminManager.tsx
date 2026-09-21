@@ -174,8 +174,19 @@ export const AdminManager: React.FC<AdminManagerProps> = ({
   // Backup & Network status
   const [importedStatus, setImportedStatus] = useState('');
   const [copiedUrl, setCopiedUrl] = useState(false);
-  const [serverIp, setServerIp] = useState('192.168.1.100');
+  const [serverIp, setServerIp] = useState('192.168.1.73');
   const [serverPort, setServerPort] = useState('5173');
+
+  useEffect(() => {
+    let isMounted = true;
+    dataService.getNetworkInfo().then(info => {
+      if (isMounted && info && info.ip) {
+        setServerIp(info.ip);
+        if (info.port) setServerPort(info.port);
+      }
+    }).catch(err => console.warn('Could not auto-fetch server IP:', err));
+    return () => { isMounted = false; };
+  }, []);
   // Google Drive Backup State
   const [drivePath, setDrivePath] = useState(() => localStorage.getItem('autocrm_drive_backup_path') || 'G:\\Mi unidad\\CRM_Backups');
   const [driveBackupMsg, setDriveBackupMsg] = useState('');

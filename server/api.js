@@ -1,10 +1,40 @@
 import express from 'express';
 import fs from 'fs';
 import path from 'path';
+import os from 'os';
 import bcrypt from 'bcryptjs';
 import { db } from './db.js';
 
 export const router = express.Router();
+
+router.get('/network-info', (req, res) => {
+  try {
+    const interfaces = os.networkInterfaces();
+    let localIp = '127.0.0.1';
+
+    for (const name of Object.keys(interfaces)) {
+      for (const net of interfaces[name] || []) {
+        if (net.family === 'IPv4' && !net.internal && !net.address.startsWith('169.254')) {
+          localIp = net.address;
+          break;
+        }
+      }
+      if (localIp !== '127.0.0.1') break;
+    }
+
+    const port = process.env.PORT || 5173;
+    const url = `http://${localIp}:${port}`;
+
+    res.json({
+      success: true,
+      ip: localIp,
+      port: String(port),
+      url: url,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message, ip: '127.0.0.1', port: '5173', url: 'http://localhost:5173' });
+  }
+});
 
 // -----------------------------------------------------------------------------
 // MIDDLEWARE DE SEGURIDAD & ROTACIÓN DE BACKUPS

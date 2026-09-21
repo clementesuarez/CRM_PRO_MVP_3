@@ -211,7 +211,7 @@ export const App: React.FC = () => {
         onOpenVehicleMatchmaker={() => setVehicleMatchmakerOpen(true)}
       />
 
-      <main className="flex-1 max-w-[1600px] w-full mx-auto p-3 sm:p-5 lg:p-6 space-y-6">
+      <main className="flex-1 max-w-[1600px] w-full mx-auto p-3 sm:p-5 lg:p-6 pb-20 lg:pb-6 space-y-6">
         {loading ? (
           <div className="space-y-6 animate-pulse">
             <div className="h-16 bg-slate-900/80 rounded-2xl border border-slate-800"></div>

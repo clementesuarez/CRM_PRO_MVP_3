@@ -99,12 +99,22 @@ export const dataService = {
     return getLocal<Cliente[]>(STORAGE_KEYS.CLIENTES, []);
   },
 
+  async getNetworkInfo(): Promise<{ success: boolean; ip: string; port: string; url: string }> {
+    const remote = await apiRequest<{ success: boolean; ip: string; port: string; url: string }>('/api/network-info');
+    if (remote) return remote;
+    return { success: false, ip: '192.168.1.73', port: '5173', url: 'http://192.168.1.73:5173' };
+  },
+
   async createCliente(cliente: Omit<Cliente, 'id' | 'created_at'>): Promise<Cliente> {
     const remote = await apiRequest<Cliente>('/api/clientes', {
       method: 'POST',
       body: JSON.stringify(cliente)
     });
-    if (remote) return remote;
+    if (remote) {
+      const current = getLocal<Cliente[]>(STORAGE_KEYS.CLIENTES, []);
+      setLocal(STORAGE_KEYS.CLIENTES, [remote, ...current.filter(c => c.id !== remote.id)]);
+      return remote;
+    }
 
     const newCliente: Cliente = {
       ...cliente,

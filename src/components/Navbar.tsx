@@ -283,6 +283,62 @@ export const Navbar: React.FC<NavbarProps> = ({
           )}
         </div>
       </div>
+
+      {/* Dock de Navegación Inferior Estilo App Móvil para Smartphones */}
+      <div className="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-slate-950/95 backdrop-blur-xl border-t border-slate-800/80 px-2 py-1.5 flex items-center justify-around shadow-2xl">
+        <button
+          type="button"
+          onClick={() => setActiveTab('pipeline')}
+          className={`flex flex-col items-center gap-0.5 px-2 py-1 rounded-xl text-[10px] font-bold transition ${
+            activeTab === 'pipeline' ? 'text-cyan-400 font-extrabold' : 'text-slate-400'
+          }`}
+        >
+          <Kanban className="w-4 h-4" />
+          <span>Pipeline</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('clientes')}
+          className={`flex flex-col items-center gap-0.5 px-2 py-1 rounded-xl text-[10px] font-bold transition ${
+            activeTab === 'clientes' ? 'text-cyan-400 font-extrabold' : 'text-slate-400'
+          }`}
+        >
+          <Users className="w-4 h-4" />
+          <span>Clientes</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={onOpenQuotation}
+          className="flex flex-col items-center gap-0.5 px-3 py-1 rounded-xl text-[10px] font-black bg-gradient-to-r from-cyan-500 to-blue-600 text-slate-950 shadow-lg shadow-cyan-500/20 active:scale-95 transition"
+        >
+          <PlusCircle className="w-4 h-4 text-slate-950" />
+          <span>+Cotizar</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('inventory')}
+          className={`flex flex-col items-center gap-0.5 px-2 py-1 rounded-xl text-[10px] font-bold transition ${
+            activeTab === 'inventory' ? 'text-cyan-400 font-extrabold' : 'text-slate-400'
+          }`}
+        >
+          <Package className="w-4 h-4" />
+          <span>Stock</span>
+        </button>
+
+        {isAuthenticated && (
+          <button
+            type="button"
+            onClick={logout}
+            className="flex flex-col items-center gap-0.5 px-2 py-1 rounded-xl text-[10px] font-bold text-rose-400 active:scale-95 transition"
+          >
+            <LogOut className="w-4 h-4 text-rose-400" />
+            <span>Salir</span>
+          </button>
+        )}
+      </div>
     </header>
   );
 };

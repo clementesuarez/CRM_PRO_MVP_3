@@ -23,14 +23,12 @@ export const STORAGE_SESSION_KEY = 'autocrm_session_user_mvp3';
 // Função síncrona exigida pelo dataService.ts para obter o perfil ativo
 export function getActiveRoleSync(): UserRole {
   try {
-    const saved = localStorage.getItem(STORAGE_SESSION_KEY);
+    const saved = sessionStorage.getItem(STORAGE_SESSION_KEY) || localStorage.getItem(STORAGE_SESSION_KEY);
     if (saved) {
       const parsed: PerfilUsuario = JSON.parse(saved);
       if (parsed?.rol) return parsed.rol;
     }
-  } catch (e) {
-    console.error('Erro ao obter perfil síncrono:', e);
-  }
+  } catch (e) {}
   return 'admin';
 }
 
@@ -39,14 +37,12 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [usuarios, setUsuarios] = useState<PerfilUsuario[]>([]);
 
-  // Sessão única centralizada: se não houver dados, retorna null estrito
+  // Usar sessionStorage para exigir login en cada nueva ventana/sesión de navegador
   const [sessionUser, setSessionUser] = useState<PerfilUsuario | null>(() => {
     try {
-      const saved = localStorage.getItem(STORAGE_SESSION_KEY);
+      const saved = sessionStorage.getItem(STORAGE_SESSION_KEY);
       if (saved) return JSON.parse(saved);
-    } catch (e) {
-      console.error('Erro ao ler sessão inicial:', e);
-    }
+    } catch (e) {}
     return null;
   });
 
@@ -72,10 +68,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const res = await dataService.loginUser(usuario, password);
       if (res.success && res.user) {
         setSessionUser(res.user);
+        sessionStorage.setItem(STORAGE_SESSION_KEY, JSON.stringify(res.user));
         localStorage.setItem(STORAGE_SESSION_KEY, JSON.stringify(res.user));
         return { success: true };
       }
-      return { success: false, error: res.error || 'Credenciais inválidas' };
+      return { success: false, error: res.error || 'Credenciales inválidas' };
     } catch {
       return { success: false, error: 'Erro de conexão com o servidor local' };
     }
@@ -84,6 +81,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const logout = useCallback(() => {
     setSessionUser(null);
     setUsuarios([]);
+    sessionStorage.removeItem(STORAGE_SESSION_KEY);
     localStorage.removeItem(STORAGE_SESSION_KEY);
   }, []);
 
