@@ -195,7 +195,7 @@ export const InventoryManager: React.FC<InventoryManagerProps> = ({
     setOrigenTransaccion(v.origen_transaccion || (v.origen_stock === 'Consignación' ? 'Consignación' : 'Stock Propio 0km/Usado'));
     setEsSoloCompra(Boolean(v.es_solo_compra));
     setFechaCompra(v.fecha_compra || new Date().toISOString().split('T')[0]);
-    setEstado(v.estado || 'Disponible');
+    setEstado((v.estado || 'disponible').toLowerCase() as EstadoVehiculo);
     setObservaciones(v.observaciones || '');
     setModalOpen(true);
   };
@@ -658,19 +658,20 @@ export const InventoryManager: React.FC<InventoryManagerProps> = ({
                     {/* Estado Selector */}
                     <td className="p-3.5">
                       <select
-                        value={v.estado}
-                        onChange={(e) => onUpdateEstadoVehiculo(v.id, e.target.value as EstadoVehiculo)}
+                        value={(v.estado || 'disponible').toLowerCase()}
+                        onChange={(e) => onUpdateEstadoVehiculo(v.id, e.target.value.toLowerCase() as EstadoVehiculo)}
                         className={`text-xs rounded-lg px-2 py-1 font-bold focus:outline-none ${
-                          v.estado === 'Disponible' ? 'bg-emerald-950/60 text-emerald-300 border border-emerald-500/30' :
-                          v.estado === 'Reacondicionamiento' ? 'bg-purple-950/60 text-purple-300 border border-purple-500/30' :
-                          v.estado === 'Reservado' ? 'bg-amber-950/60 text-amber-300 border border-amber-500/30' :
+                          (v.estado || '').toLowerCase() === 'disponible' ? 'bg-emerald-950/60 text-emerald-300 border border-emerald-500/30' :
+                          (v.estado || '').toLowerCase() === 'reacondicionamiento' ? 'bg-purple-950/60 text-purple-300 border border-purple-500/30' :
+                          (v.estado || '').toLowerCase() === 'reservado' ? 'bg-amber-950/60 text-amber-300 border border-amber-500/30' :
+                          (v.estado || '').toLowerCase() === 'vendido' ? 'bg-rose-950/60 text-rose-300 border border-rose-500/30' :
                           'bg-slate-800 text-slate-400 border border-slate-700'
                         }`}
                       >
-                        <option value="Disponible">Disponible</option>
-                        <option value="Reacondicionamiento">Reacondicionamiento</option>
-                        <option value="Reservado">Reservado</option>
-                        <option value="Vendido">Vendido</option>
+                        <option value="disponible">Disponible</option>
+                        <option value="reacondicionamiento">Reacondicionamiento</option>
+                        <option value="reservado">Reservado</option>
+                        <option value="vendido">Vendido</option>
                       </select>
                     </td>
 
@@ -708,7 +709,7 @@ export const InventoryManager: React.FC<InventoryManagerProps> = ({
                         )}
 
                         {/* Cotizar Button */}
-                        {v.estado === 'Disponible' && (
+                        {(v.estado || '').toLowerCase() === 'disponible' && (
                           <button
                             onClick={() => onStartQuotationForVehicle && onStartQuotationForVehicle(v.id)}
                             className="px-2.5 py-1.5 rounded-lg bg-cyan-500/10 text-cyan-300 border border-cyan-500/30 hover:bg-cyan-500 hover:text-slate-950 font-bold transition flex items-center gap-1 text-xs"
@@ -742,10 +743,12 @@ export const InventoryManager: React.FC<InventoryManagerProps> = ({
                     <h3 className="text-xl font-extrabold text-slate-100">
                       {viewingVehiculo.marca} {viewingVehiculo.modelo} ({viewingVehiculo.anio})
                     </h3>
-                    <span className={`text-xs px-2.5 py-0.5 rounded-full font-bold ${
-                      viewingVehiculo.estado === 'Disponible' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' :
-                      viewingVehiculo.estado === 'Reservado' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' :
-                      'bg-purple-500/20 text-purple-300 border border-purple-500/30'
+                    <span className={`text-xs px-2.5 py-0.5 rounded-full font-bold capitalize ${
+                      (viewingVehiculo.estado || '').toLowerCase() === 'disponible' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' :
+                      (viewingVehiculo.estado || '').toLowerCase() === 'reservado' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' :
+                      (viewingVehiculo.estado || '').toLowerCase() === 'reacondicionamiento' ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30' :
+                      (viewingVehiculo.estado || '').toLowerCase() === 'vendido' ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30' :
+                      'bg-slate-800 text-slate-300 border border-slate-700'
                     }`}>
                       {viewingVehiculo.estado}
                     </span>
@@ -1275,14 +1278,14 @@ export const InventoryManager: React.FC<InventoryManagerProps> = ({
                 <div>
                   <label className="block font-semibold text-slate-300 mb-1">Estado de Comercialización</label>
                   <select
-                    value={estado}
-                    onChange={(e) => setEstado(e.target.value as EstadoVehiculo)}
+                    value={(estado || 'disponible').toLowerCase()}
+                    onChange={(e) => setEstado(e.target.value.toLowerCase() as EstadoVehiculo)}
                     className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-slate-100 focus:outline-none focus:border-cyan-500 font-bold"
                   >
-                    <option value="Disponible">Disponible</option>
-                    <option value="Reacondicionamiento">Reacondicionamiento</option>
-                    <option value="Reservado">Reservado</option>
-                    <option value="Vendido">Vendido</option>
+                    <option value="disponible">Disponible</option>
+                    <option value="reacondicionamiento">Reacondicionamiento</option>
+                    <option value="reservado">Reservado</option>
+                    <option value="vendido">Vendido</option>
                   </select>
                 </div>
 
