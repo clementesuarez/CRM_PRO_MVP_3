@@ -518,12 +518,16 @@ export const dataService = {
     }
   },
 
-  async importJSONToSQLite(jsonData: any): Promise<{ success: boolean; mensaje?: string; error?: string }> {
+  async importJSONToSQLite(jsonData: any, overwrite: boolean = true): Promise<{ success: boolean; mensaje?: string; error?: string }> {
     try {
       const res = await fetch('/api/import/json', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ data: jsonData.data || jsonData })
+        body: JSON.stringify({
+          data: jsonData.data || jsonData,
+          overwrite: overwrite,
+          mode: overwrite ? 'overwrite' : 'merge'
+        })
       });
       const data = await res.json();
       if (!res.ok || !data.success) {

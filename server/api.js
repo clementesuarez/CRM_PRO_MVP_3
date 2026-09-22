@@ -1379,14 +1379,27 @@ router.put('/pedidos-encargo/:id', (req, res) => {
 
 router.post('/import/json', (req, res) => {
   try {
-    const { data } = req.body || {};
+    const { data, mode, overwrite } = req.body || {};
     if (!data) return res.status(400).json({ error: 'No se enviaron datos para importar.' });
 
-    const clientes = data.clientes || [];
-    const inventario = data.inventario || [];
+    const raw = data.data || data;
+    const clientes = raw.clientes || [];
+    const inventario = raw.inventario || raw.vehiculos || [];
+    const presupuestos = raw.presupuestos || raw.cotizaciones || [];
+    const pagares = raw.pagares || raw.cuotas || [];
+    const permutas = raw.permutas || [];
+    const interacciones = raw.interacciones || [];
+    const pedidos_encargo = raw.pedidos_encargo || [];
+
+    const isOverwrite = overwrite === true || mode === 'overwrite';
 
     let countClientes = 0;
     let countVehiculos = 0;
+    let countPresupuestos = 0;
+    let countPagares = 0;
+    let countPermutas = 0;
+    let countInteracciones = 0;
+    let countEncargos = 0;
 
     const stmtCli = db.prepare(`
       INSERT INTO clientes (
@@ -1395,7 +1408,14 @@ router.post('/import/json', (req, res) => {
         compro_credito, monto_credito, deja_auto_permuta, auto_permuta_detalle,
         tipo_cliente, notas, created_at
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      ON CONFLICT(id) DO UPDATE SET nombre=excluded.nombre, telefono=excluded.telefono, email=excluded.email
+      ON CONFLICT(id) DO UPDATE SET
+        nombre=excluded.nombre, apellido=excluded.apellido, numero_documento=excluded.numero_documento,
+        tipo_documento=excluded.tipo_documento, telefono=excluded.telefono, email=excluded.email,
+        domicilio_calle=excluded.domicilio_calle, domicilio_numero=excluded.domicilio_numero,
+        localidad=excluded.localidad, provincia=excluded.provincia, codigo_postal=excluded.codigo_postal,
+        compro_credito=excluded.compro_credito, monto_credito=excluded.monto_credito,
+        deja_auto_permuta=excluded.deja_auto_permuta, auto_permuta_detalle=excluded.auto_permuta_detalle,
+        tipo_cliente=excluded.tipo_cliente, notas=excluded.notas, created_at=excluded.created_at
     `);
 
     const stmtVeh = db.prepare(`
@@ -1403,10 +1423,88 @@ router.post('/import/json', (req, res) => {
         id, patente, marca, modelo, version, anio, precio_lista, costo_compra,
         estado, fecha_ingreso, kilometraje, es_cero_km, moneda, observaciones, created_at
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      ON CONFLICT(id) DO UPDATE SET marca=excluded.marca, modelo=excluded.modelo, precio_lista=excluded.precio_lista
+      ON CONFLICT(id) DO UPDATE SET
+        patente=excluded.patente, marca=excluded.marca, modelo=excluded.modelo,
+        version=excluded.version, anio=excluded.anio, precio_lista=excluded.precio_lista,
+        costo_compra=excluded.costo_compra, estado=excluded.estado, fecha_ingreso=excluded.fecha_ingreso,
+        kilometraje=excluded.kilometraje, es_cero_km=excluded.es_cero_km, moneda=excluded.moneda,
+        observaciones=excluded.observaciones
+    `);
+
+    const stmtPres = db.prepare(`
+      INSERT INTO presupuestos (
+        id, cliente_id, vehiculo_id, precio_ofrecido, anticipo, saldo_financiado,
+        cant_cuotas, valor_cuota, estado, moneda, motivo_perdida, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET
+        cliente_id=excluded.cliente_id, vehiculo_id=excluded.vehiculo_id,
+        precio_ofrecido=excluded.precio_ofrecido, anticipo=excluded.anticipo,
+        saldo_financiado=excluded.saldo_financiado, cant_cuotas=excluded.cant_cuotas,
+        valor_cuota=excluded.valor_cuota, estado=excluded.estado, moneda=excluded.moneda,
+        motivo_perdida=excluded.motivo_perdida
+    `);
+
+    const stmtPag = db.prepare(`
+      INSERT INTO pagares (
+        id, cotizacion_id, cliente_id, nro_cuota, monto, fecha_vencimiento,
+        fecha_pago, estado, numero_pagare, moneda, monto_pagado, comprobante_pago,
+        observaciones, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET
+        cotizacion_id=excluded.cotizacion_id, cliente_id=excluded.cliente_id,
+        nro_cuota=excluded.nro_cuota, monto=excluded.monto,
+        fecha_vencimiento=excluded.fecha_vencimiento, fecha_pago=excluded.fecha_pago,
+        estado=excluded.estado, numero_pagare=excluded.numero_pagare, moneda=excluded.moneda,
+        monto_pagado=excluded.monto_pagado, comprobante_pago=excluded.comprobante_pago,
+        observaciones=excluded.observaciones
+    `);
+
+    const stmtPerm = db.prepare(`
+      INSERT INTO permutas (
+        id, presupuesto_id, patente, marca, modelo, version, anio,
+        kilometraje, moneda, valor_tasacion, observaciones, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET
+        patente=excluded.patente, marca=excluded.marca, modelo=excluded.modelo,
+        version=excluded.version, anio=excluded.anio, kilometraje=excluded.kilometraje,
+        moneda=excluded.moneda, valor_tasacion=excluded.valor_tasacion, observaciones=excluded.observaciones
+    `);
+
+    const stmtInt = db.prepare(`
+      INSERT INTO interacciones (
+        id, cliente_id, tipo, nota, accion_siguiente, fecha_contacto, proximo_contacto
+      ) VALUES (?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET
+        tipo=excluded.tipo, nota=excluded.nota, accion_siguiente=excluded.accion_siguiente,
+        fecha_contacto=excluded.fecha_contacto, proximo_contacto=excluded.proximo_contacto
+    `);
+
+    const stmtEnc = db.prepare(`
+      INSERT INTO pedidos_encargo (
+        id, cliente_id, marca_buscada, modelo_buscado, anio_minimo, anio_maximo,
+        presupuesto_maximo, moneda, es_cero_km, color_preferencia, estado, observaciones, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET
+        marca_buscada=excluded.marca_buscada, modelo_buscado=excluded.modelo_buscado,
+        presupuesto_maximo=excluded.presupuesto_maximo, estado=excluded.estado, observaciones=excluded.observaciones
     `);
 
     db.transaction(() => {
+      if (isOverwrite) {
+        db.exec(`
+          DELETE FROM reclamos_cobranza;
+          DELETE FROM pagares;
+          DELETE FROM permutas;
+          DELETE FROM interacciones;
+          DELETE FROM pedidos_encargo;
+          DELETE FROM presupuestos;
+          DELETE FROM cotizaciones;
+          DELETE FROM inventario;
+          DELETE FROM vehiculos;
+          DELETE FROM clientes;
+        `);
+      }
+
       clientes.forEach((c) => {
         const id = c.id || ('c_' + Date.now() + Math.random().toString(36).substring(2, 5));
         stmtCli.run(
@@ -1423,20 +1521,75 @@ router.post('/import/json', (req, res) => {
       inventario.forEach((v) => {
         const id = v.id || ('v_' + Date.now() + Math.random().toString(36).substring(2, 5));
         stmtVeh.run(
-          id, v.patente ? v.patente.toUpperCase().trim() : null, v.marca || 'Usado',
+          id, v.patente ? String(v.patente).toUpperCase().trim() : null, v.marca || 'Usado',
           v.modelo || 'Unidad', v.version || null, v.anio || new Date().getFullYear(),
           v.precio_lista ?? v.precio_venta ?? 0, v.costo_compra ?? v.costo_toma ?? 0,
           (v.estado || 'disponible').toLowerCase(), v.fecha_ingreso || new Date().toISOString().split('T')[0],
           v.kilometraje || 0, v.es_cero_km ? 1 : 0, v.moneda || 'USD',
-          v.observaciones || null, new Date().toISOString()
+          v.observaciones || null, v.created_at || new Date().toISOString()
         );
         countVehiculos++;
       });
+
+      presupuestos.forEach((p) => {
+        const id = p.id || ('p_' + Date.now() + Math.random().toString(36).substring(2, 5));
+        stmtPres.run(
+          id, p.cliente_id || p.cliente?.id || '', p.vehiculo_id || p.vehiculo?.id || null,
+          p.precio_ofrecido || 0, p.anticipo || 0, p.saldo_financiado || 0,
+          p.cant_cuotas || 0, p.valor_cuota || 0, p.estado || 'borrador',
+          p.moneda || 'USD', p.motivo_perdida || null, p.created_at || new Date().toISOString()
+        );
+        countPresupuestos++;
+      });
+
+      pagares.forEach((p) => {
+        const id = p.id || ('pag_' + Date.now() + Math.random().toString(36).substring(2, 5));
+        stmtPag.run(
+          id, p.cotizacion_id || p.prestamo_id || null, p.cliente_id || p.cliente?.id || null,
+          p.nro_cuota ?? p.numero_cuota ?? 1, p.monto ?? p.monto_cuota ?? 0,
+          p.fecha_vencimiento || p.vencimiento || new Date().toISOString().split('T')[0],
+          p.fecha_pago || null, p.estado || 'Pendiente', p.numero_pagare || null,
+          p.moneda || 'USD', p.monto_pagado || 0, p.comprobante_pago || null,
+          p.observaciones || null, p.created_at || new Date().toISOString()
+        );
+        countPagares++;
+      });
+
+      permutas.forEach((pm) => {
+        const id = pm.id || ('pm_' + Date.now() + Math.random().toString(36).substring(2, 5));
+        stmtPerm.run(
+          id, pm.presupuesto_id || '', pm.patente || null, pm.marca || '', pm.modelo || '',
+          pm.version || null, pm.anio || new Date().getFullYear(), pm.kilometraje || 0,
+          pm.moneda || 'USD', pm.valor_tasacion || 0, pm.observaciones || null, pm.created_at || new Date().toISOString()
+        );
+        countPermutas++;
+      });
+
+      interacciones.forEach((it) => {
+        const id = it.id || ('int_' + Date.now() + Math.random().toString(36).substring(2, 5));
+        stmtInt.run(
+          id, it.cliente_id, it.tipo || 'Llamada', it.nota || '',
+          it.accion_siguiente || null, it.fecha_contacto || new Date().toISOString(), it.proximo_contacto || null
+        );
+        countInteracciones++;
+      });
+
+      pedidos_encargo.forEach((enc) => {
+        const id = enc.id || ('enc_' + Date.now() + Math.random().toString(36).substring(2, 5));
+        stmtEnc.run(
+          id, enc.cliente_id, enc.marca_buscada || '', enc.modelo_buscado || '',
+          enc.anio_minimo || null, enc.anio_maximo || null, enc.presupuesto_maximo || 0,
+          enc.moneda || 'USD', enc.es_cero_km ? 1 : 0, enc.color_preferencia || null,
+          enc.estado || 'Buscando en Mercado', enc.observaciones || null, enc.created_at || new Date().toISOString()
+        );
+        countEncargos++;
+      });
     })();
 
+    const actionTitle = isOverwrite ? 'Restauración Completa (Sobrescribir Total)' : 'Fusión de Datos';
     res.json({
       success: true,
-      mensaje: `Restauración completada: ${countClientes} clientes y ${countVehiculos} unidades guardadas en SQLite local.`
+      mensaje: `${actionTitle} realizada con éxito: ${countClientes} clientes, ${countVehiculos} unidades, ${countPresupuestos} presupuestos y ${countPagares} pagarés procesados en SQLite.`
     });
   } catch (err) {
     res.status(500).json({ error: err.message });

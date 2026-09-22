@@ -349,17 +349,24 @@ export const AdminManager: React.FC<AdminManagerProps> = ({
     e.target.value = '';
   };
 
-  const confirmJsonRestore = async () => {
+  const confirmJsonRestore = async (overwrite: boolean = true) => {
     if (!jsonRestoreModalData) return;
     try {
       const rawData = jsonRestoreModalData.data?.data || jsonRestoreModalData.data;
-      const res = await dataService.importJSONToSQLite(jsonRestoreModalData.data);
-      await onImportData({
-        clientes: rawData?.clientes || [],
-        inventario: rawData?.inventario || [],
-        pagares: rawData?.pagares || []
-      });
-      setImportedStatus(`✅ ${res?.mensaje || 'Resguardo JSON restaurado exitosamente en SQLite.'}`);
+      const res = await dataService.importJSONToSQLite(jsonRestoreModalData.data, overwrite);
+      if (res?.success) {
+        setImportedStatus(`✅ ${res.mensaje || 'Resguardo JSON restaurado exitosamente en SQLite.'}`);
+        await onImportData({
+          clientes: rawData?.clientes || [],
+          inventario: rawData?.inventario || [],
+          pagares: rawData?.pagares || []
+        });
+        setTimeout(() => {
+          window.location.reload();
+        }, 1200);
+      } else {
+        setImportedStatus(`❌ Error al restaurar: ${res?.error || 'Falló la operación.'}`);
+      }
     } catch (err: any) {
       setImportedStatus('❌ Error al procesar la restauración en SQLite.');
     } finally {
@@ -1699,7 +1706,7 @@ export const AdminManager: React.FC<AdminManagerProps> = ({
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
               <h4 className="font-black text-amber-400 flex items-center gap-2 text-sm">
                 <AlertTriangle className="w-5 h-5 text-amber-400" />
-                Advertencia de Restauración de Base de Datos
+                Seleccionar Modo de Restauración SQLite
               </h4>
               <button onClick={() => setJsonRestoreModalData(null)} className="text-slate-400 hover:text-white">
                 <X className="w-5 h-5" />
@@ -1707,28 +1714,59 @@ export const AdminManager: React.FC<AdminManagerProps> = ({
             </div>
 
             <div className="space-y-3 text-xs text-slate-300">
-              <p className="bg-amber-950/40 border border-amber-500/30 p-3.5 rounded-2xl text-amber-200">
-                <strong>¡Atención!</strong> Esta acción procesará el archivo <span className="font-mono text-white font-bold">{jsonRestoreModalData.fileName}</span> y actualizará los registros de Clientes e Inventario en la base de datos local SQLite.
+              <p className="bg-amber-950/40 border border-amber-500/30 p-3 rounded-2xl text-amber-200">
+                <strong>Archivo de Resguardo:</strong> <span className="font-mono text-white font-bold">{jsonRestoreModalData.fileName}</span>
               </p>
-              <p className="text-slate-400">
-                Se recomienda haber generado una copia de seguridad previa antes de reemplazar o sincronizar datos masivos.
+              <p className="text-slate-400 leading-relaxed">
+                Elige cómo deseas procesar este resguardo en la base de datos local SQLite (`crm_local.db`):
               </p>
+
+              <div className="space-y-3 pt-1">
+                {/* Opción A: Sobrescribir / Reemplazo Total */}
+                <div className="p-3.5 rounded-2xl bg-red-950/30 border border-red-500/40 space-y-2">
+                  <div className="font-bold text-red-300 flex items-center gap-2 text-xs">
+                    <ShieldAlert className="w-4 h-4 text-red-400" />
+                    Opción A: Restauración Completa (Sobrescribir Total)
+                  </div>
+                  <p className="text-[11px] text-slate-400 leading-normal">
+                    ⚠️ Limpia las tablas operativas (`clientes`, `inventario`, `presupuestos`, `pagares`) e inserta la foto exacta del backup. <strong>Los registros creados posteriormente serán eliminados.</strong>
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => confirmJsonRestore(true)}
+                    className="w-full py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-white font-extrabold text-xs shadow-lg shadow-red-600/25 transition cursor-pointer"
+                  >
+                    ⚠️ Restauración Completa (Reemplazar Base Actual)
+                  </button>
+                </div>
+
+                {/* Opción B: Fusión / Conservar Actuales */}
+                <div className="p-3.5 rounded-2xl bg-slate-950 border border-slate-800 space-y-2">
+                  <div className="font-bold text-cyan-300 flex items-center gap-2 text-xs">
+                    <RefreshCw className="w-4 h-4 text-cyan-400" />
+                    Opción B: Fusionar (Conservar registros actuales)
+                  </div>
+                  <p className="text-[11px] text-slate-400 leading-normal">
+                    Incorpora o actualiza los datos del archivo JSON sin eliminar las unidades o clientes creados con posterioridad.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => confirmJsonRestore(false)}
+                    className="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs border border-slate-700 transition cursor-pointer"
+                  >
+                    🔄 Fusionar / Conservar Actuales
+                  </button>
+                </div>
+              </div>
             </div>
 
-            <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-800">
+            <div className="flex items-center justify-end pt-2 border-t border-slate-800">
               <button
                 type="button"
                 onClick={() => setJsonRestoreModalData(null)}
-                className="px-4 py-2.5 rounded-xl bg-slate-800 text-slate-300 font-semibold text-xs hover:text-white"
+                className="px-4 py-2 rounded-xl bg-slate-800 text-slate-400 font-semibold text-xs hover:text-white"
               >
                 Cancelar
-              </button>
-              <button
-                type="button"
-                onClick={confirmJsonRestore}
-                className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-600 text-slate-950 font-black text-xs hover:from-amber-400 hover:to-orange-500 shadow-lg shadow-amber-500/20"
-              >
-                Confirmar y Restaurar SQLite
               </button>
             </div>
           </div>

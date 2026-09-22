@@ -141,6 +141,27 @@ export const BackupManager: React.FC<BackupManagerProps> = ({
     reader.onload = async (event) => {
       try {
         const text = event.target?.result as string;
+
+        if (file.name.endsWith('.json')) {
+          const parsed = JSON.parse(text);
+          const confirmFull = window.confirm(
+            "⚠️ RESTAURACIÓN COMPLETA DE BASE DE DATOS\n\n¿Deseas reemplazar completamente la base actual por los datos del resguardo JSON?\n\n- Presiona 'ACEPTAR' para Restauración Completa (Sobrescribir Total, elimina datos posteriores).\n- Presiona 'CANCELAR' para Fusionar (Conservar datos actuales)."
+          );
+
+          const res = await dataService.importJSONToSQLite(parsed, confirmFull);
+          if (res?.success) {
+            setImportedStatus(`✅ ${res.mensaje}`);
+            const raw = parsed.data || parsed;
+            await onImportData({ clientes: raw.clientes, inventario: raw.inventario, pagares: raw.pagares });
+            setTimeout(() => {
+              window.location.reload();
+            }, 1200);
+          } else {
+            setImportedStatus(`❌ Error: ${res?.error || 'Falló la importación'}`);
+          }
+          return;
+        }
+
         const dataRows = parseCSVText(text);
         if (dataRows.length === 0) {
           setImportedStatus('El archivo CSV está vacío o sin datos válidos.');
@@ -155,14 +176,15 @@ export const BackupManager: React.FC<BackupManagerProps> = ({
           await onImportData({ clientes: dataRows as any });
           setImportedStatus(`¡Se importaron ${dataRows.length} clientes a la Base!`);
         } else {
-          setImportedStatus('Formato CSV no reconocido.');
+          setImportedStatus('Formato CSV/JSON no reconocido.');
         }
       } catch (err) {
         console.error(err);
-        setImportedStatus('Error al procesar el archivo CSV/Excel.');
+        setImportedStatus('Error al procesar el archivo de copia de seguridad.');
       }
     };
     reader.readAsText(file);
+    e.target.value = '';
   };
 
   return (
@@ -248,14 +270,14 @@ export const BackupManager: React.FC<BackupManagerProps> = ({
             <div className="bg-slate-900/60 p-4 rounded-xl border border-slate-800 space-y-3">
               <h4 className="text-xs font-bold text-slate-200 uppercase tracking-wider flex items-center gap-2">
                 <Upload className="w-4 h-4 text-purple-400" />
-                2. Importar Archivo Excel / CSV a la Base
+                2. Importar Archivo Excel / CSV / JSON a la Base
               </h4>
               <p className="text-xs text-slate-400">
-                Selecciona un archivo CSV o Excel exportado previamente para restaurar o cargar masivamente datos.
+                Selecciona un archivo CSV/Excel o resguardo JSON completo para restaurar datos.
               </p>
               <input
                 type="file"
-                accept=".csv"
+                accept=".csv,.json"
                 onChange={handleFileUpload}
                 className="w-full text-xs text-slate-300 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-purple-500/20 file:text-purple-300 hover:file:bg-purple-500 hover:file:text-white cursor-pointer"
               />
