@@ -28,9 +28,6 @@ const CACHE_TTL_MS = 5 * 60 * 1000;
 export const getApiBaseUrl = (): string => {
   if (typeof window === 'undefined') return '/api';
   const { protocol, hostname, port } = window.location;
-  if (port === '5173') {
-    return `${protocol}//${hostname}:5000/api`;
-  }
   return `${protocol}//${hostname}${port ? ':' + port : ''}/api`;
 };
 
