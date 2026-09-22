@@ -167,16 +167,23 @@ export const PagaresManager: React.FC = () => {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [prestamosData, cuotasData, reclamosData, clientesData] = await Promise.all([
+      const [prestamosData, cuotasData, reclamosData, clientesData, plantillasData] = await Promise.all([
         dataService.getPrestamosPagares(),
         dataService.getCuotasPagares(),
         dataService.getReclamosCobranza(),
-        dataService.getClientes()
+        dataService.getClientes(),
+        dataService.getPlantillasWsp().catch(() => [])
       ]);
       setPrestamos(prestamosData);
       setCuotas(cuotasData);
       setReclamos(reclamosData);
       setClientes(clientesData);
+      if (plantillasData && plantillasData.length > 0) {
+        const moraDb = plantillasData.find(p => p.codigo === 'reclamo_mora');
+        if (moraDb && moraDb.contenido) {
+          setCustomTemplate(moraDb.contenido);
+        }
+      }
     } catch (err) {
       console.error('Error al cargar préstamos y pagarés:', err);
     } finally {
@@ -2182,11 +2189,17 @@ export const PagaresManager: React.FC = () => {
                           <div className="flex flex-wrap items-center gap-2">
                             <button
                               type="button"
-                              onClick={() => {
+                              onClick={async () => {
                                 setCustomTemplate(DEFAULT_OVERDUE_WHATSAPP_TEMPLATE);
                                 const u = { ...whatsAppConfig, defaultTemplate: DEFAULT_OVERDUE_WHATSAPP_TEMPLATE };
                                 setWhatsAppConfigState(u);
                                 saveWhatsAppConfig(u);
+                                dataService.savePlantillaWsp({
+                                  modulo: 'pagares',
+                                  codigo: 'reclamo_mora',
+                                  titulo: '🔴 Plantilla Mora Vencida',
+                                  contenido: DEFAULT_OVERDUE_WHATSAPP_TEMPLATE
+                                }).catch(err => console.error(err));
                               }}
                               className="text-[10px] px-2 py-1 rounded bg-red-500/20 text-red-300 border border-red-500/40 hover:bg-red-500/40 font-bold transition cursor-pointer"
                             >
@@ -2194,11 +2207,17 @@ export const PagaresManager: React.FC = () => {
                             </button>
                             <button
                               type="button"
-                              onClick={() => {
+                              onClick={async () => {
                                 setCustomTemplate(DEFAULT_WHATSAPP_TEMPLATE);
                                 const u = { ...whatsAppConfig, defaultTemplate: DEFAULT_WHATSAPP_TEMPLATE };
                                 setWhatsAppConfigState(u);
                                 saveWhatsAppConfig(u);
+                                dataService.savePlantillaWsp({
+                                  modulo: 'pagares',
+                                  codigo: 'proximo_vencer',
+                                  titulo: '🟡 Recordatorio Próximo',
+                                  contenido: DEFAULT_WHATSAPP_TEMPLATE
+                                }).catch(err => console.error(err));
                               }}
                               className="text-[10px] px-2 py-1 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 hover:bg-amber-500/40 font-bold transition cursor-pointer"
                             >
@@ -2243,10 +2262,17 @@ export const PagaresManager: React.FC = () => {
                           rows={4}
                           value={customTemplate}
                           onChange={(e) => {
-                            setCustomTemplate(e.target.value);
-                            const updated = { ...whatsAppConfig, defaultTemplate: e.target.value };
+                            const val = e.target.value;
+                            setCustomTemplate(val);
+                            const updated = { ...whatsAppConfig, defaultTemplate: val };
                             setWhatsAppConfigState(updated);
                             saveWhatsAppConfig(updated);
+                            dataService.savePlantillaWsp({
+                              modulo: 'pagares',
+                              codigo: 'reclamo_mora',
+                              titulo: 'Plantilla Personalizada Pagarés',
+                              contenido: val
+                            }).catch(err => console.error(err));
                           }}
                           className="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-xs text-white focus:outline-none focus:border-emerald-500 font-sans leading-relaxed"
                         />

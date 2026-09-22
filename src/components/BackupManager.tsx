@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { Cliente, Inventario, Presupuesto, Permuta } from '../types/crm';
 import { dataService } from '../services/dataService';
+import { formatCSVCell, generateCSV, downloadCSVBlob, parseCSVText } from '../utils/csvHelper';
 
 interface BackupManagerProps {
   isOpen: boolean;
@@ -51,29 +52,23 @@ export const BackupManager: React.FC<BackupManagerProps> = ({
     }
   };
 
-  // Helper to convert objects array to downloadable CSV / Excel file
-  const downloadCSV = (filename: string, rows: object[]) => {
+  // Helper to convert objects array to downloadable CSV / Excel file (BOM + ; + =""VALOR"")
+  const exportObjectsToCSV = (filename: string, rows: object[]) => {
     if (!rows || rows.length === 0) return;
-    const headers = Object.keys(rows[0]).join(',');
-    const csvContent = [
-      headers,
-      ...rows.map(row => 
-        Object.values(row).map(v => `"${String(v ?? '').replace(/"/g, '""')}"`).join(',')
-      )
-    ].join('\n');
-
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.setAttribute('download', `${filename}_${new Date().toISOString().slice(0, 10)}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    const headers = Object.keys(rows[0]);
+    const csvRows = rows.map(row =>
+      headers.map(h => {
+        const val = (row as any)[h];
+        const isId = /telefono|dni|documento|id|cuota/i.test(h);
+        return formatCSVCell(val, isId);
+      })
+    );
+    const content = generateCSV(headers, csvRows);
+    downloadCSVBlob(filename, content);
   };
 
   const handleExportAll = async () => {
-    downloadCSV('Backup_Clientes_Agencia', clientes.map(c => ({
+    exportObjectsToCSV('Backup_Clientes_Agencia', clientes.map(c => ({
       id: c.id,
       nombre: c.nombre,
       apellido: c.apellido || '',
@@ -95,9 +90,9 @@ export const BackupManager: React.FC<BackupManagerProps> = ({
       created_at: c.created_at
     })));
 
-    downloadCSV('Backup_Inventario_Agencia', inventario);
+    exportObjectsToCSV('Backup_Inventario_Agencia', inventario);
 
-    downloadCSV('Backup_Presupuestos_Agencia', presupuestos.map(p => {
+    exportObjectsToCSV('Backup_Presupuestos_Agencia', presupuestos.map(p => {
       const c = p.cliente;
       return {
         id: p.id,
@@ -116,7 +111,7 @@ export const BackupManager: React.FC<BackupManagerProps> = ({
     try {
       const cuotas = await dataService.getCuotasPagares();
       if (cuotas && cuotas.length > 0) {
-        downloadCSV('Backup_Pagares_Agencia', cuotas.map((p: any) => {
+        exportObjectsToCSV('Backup_Pagares_Agencia', cuotas.map((p: any) => {
           const c = p.cliente || clientes.find(cl => cl.id === (p.cliente_id || p.cliente?.id));
           return {
             ID: p.id,
@@ -146,25 +141,18 @@ export const BackupManager: React.FC<BackupManagerProps> = ({
     reader.onload = async (event) => {
       try {
         const text = event.target?.result as string;
-        const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
-        if (lines.length < 2) return;
+        const dataRows = parseCSVText(text);
+        if (dataRows.length === 0) {
+          setImportedStatus('El archivo CSV está vacío o sin datos válidos.');
+          return;
+        }
 
-        const headers = lines[0].split(',').map(h => h.replace(/"/g, '').trim());
-        const dataRows = lines.slice(1).map(line => {
-          const values = line.split(',').map(v => v.replace(/"/g, '').trim());
-          const obj: any = {};
-          headers.forEach((h, i) => {
-            obj[h] = values[i];
-          });
-          return obj;
-        });
-
-        // Determine if importing Clientes or Inventario based on CSV headers
+        const headers = Object.keys(dataRows[0]);
         if (headers.includes('patente') || headers.includes('marca')) {
-          await onImportData({ inventario: dataRows });
+          await onImportData({ inventario: dataRows as any });
           setImportedStatus(`¡Se importaron ${dataRows.length} unidades al Inventario!`);
         } else if (headers.includes('nombre') || headers.includes('telefono')) {
-          await onImportData({ clientes: dataRows });
+          await onImportData({ clientes: dataRows as any });
           setImportedStatus(`¡Se importaron ${dataRows.length} clientes a la Base!`);
         } else {
           setImportedStatus('Formato CSV no reconocido.');

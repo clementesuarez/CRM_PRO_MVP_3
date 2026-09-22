@@ -247,6 +247,16 @@ export interface DashboardMetrics {
   };
 }
 
+export interface PlantillaWhatsApp {
+  id: string;
+  modulo: 'clientes' | 'pagares';
+  codigo: string;
+  titulo: string;
+  contenido: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
 // ----------------------------------------------------------------------------
 // ENCARGOS / RADAR DE BÚSQUEDA DE VEHÍCULOS
 // ----------------------------------------------------------------------------

@@ -1442,3 +1442,40 @@ router.post('/import/json', (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
+// -----------------------------------------------------------------------------
+// ABM DE PLANTILLAS DE WHATSAPP
+// -----------------------------------------------------------------------------
+router.get('/plantillas-wsp', (req, res) => {
+  try {
+    const rows = db.prepare('SELECT * FROM plantillas_wsp ORDER BY modulo, titulo').all();
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/plantillas-wsp', (req, res) => {
+  try {
+    const { id, modulo, codigo, titulo, contenido } = req.body || {};
+    if (!codigo || !contenido) {
+      return res.status(400).json({ error: 'Faltan campos requeridos (codigo y contenido).' });
+    }
+    const templateId = id || ('pl_' + Date.now() + Math.random().toString(36).substring(2, 5));
+    const now = new Date().toISOString();
+
+    db.prepare(`
+      INSERT INTO plantillas_wsp (id, modulo, codigo, titulo, contenido, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(codigo) DO UPDATE SET
+        titulo = excluded.titulo,
+        contenido = excluded.contenido,
+        updated_at = excluded.updated_at
+    `).run(templateId, modulo || 'pagares', codigo, titulo || codigo, contenido, now, now);
+
+    const all = db.prepare('SELECT * FROM plantillas_wsp ORDER BY modulo, titulo').all();
+    res.json({ success: true, plantillas: all });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});

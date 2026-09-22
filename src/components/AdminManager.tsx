@@ -43,6 +43,7 @@ import { isSupabaseConfigured } from '../lib/supabaseClient';
 import { useAuth } from '../context/AuthContext';
 import { dataService } from '../services/dataService';
 import { UserRole, ROLE_LABELS } from '../types/auth';
+import { formatCSVCell, generateCSV, downloadCSVBlob, parseCSVText } from '../utils/csvHelper';
 
 interface AdminManagerProps {
   clientes: Cliente[];
@@ -387,22 +388,18 @@ export const AdminManager: React.FC<AdminManagerProps> = ({
 
   const downloadCSV = (filename: string, rows: object[]) => {
     if (!rows || rows.length === 0) return;
-    const headers = Object.keys(rows[0]).join(',');
-    const csvContent = [
-      headers,
-      ...rows.map(row =>
-        Object.values(row).map(v => `"${String(v ?? '').replace(/"/g, '""')}"`).join(',')
-      )
-    ].join('\n');
+    const headers = Object.keys(rows[0]);
+    const identifierKeys = ['telefono', 'numero_documento', 'dni', 'cuit', 'dueno_consigna_telefono', 'ID', 'Cliente_ID', 'DNI'];
 
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.setAttribute('download', `${filename}_${new Date().toISOString().slice(0, 10)}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    const csvRows = rows.map(row =>
+      headers.map(h => {
+        const val = (row as any)[h];
+        const isId = identifierKeys.some(k => k.toLowerCase() === h.toLowerCase());
+        return formatCSVCell(val, isId);
+      })
+    );
+    const content = generateCSV(headers, csvRows);
+    downloadCSVBlob(filename, content);
   };
 
   const handleExportAllExcel = async () => {
@@ -488,23 +485,14 @@ export const AdminManager: React.FC<AdminManagerProps> = ({
         reader.onload = (event) => {
           try {
             const text = event.target?.result as string;
-            const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
-            if (lines.length >= 2) {
-              const headers = lines[0].split(',').map(h => h.replace(/"/g, '').trim().toLowerCase());
-              const dataRows = lines.slice(1).map(line => {
-                const values = line.split(',').map(v => v.replace(/"/g, '').trim());
-                const obj: any = {};
-                headers.forEach((h, i) => {
-                  obj[h] = values[i];
-                });
-                return obj;
-              });
-
+            const dataRows = parseCSVText(text);
+            if (dataRows.length > 0) {
+              const headers = Object.keys(dataRows[0]).map(h => h.toLowerCase());
               if (headers.includes('patente') || headers.includes('marca') || headers.includes('modelo') || headers.includes('precio_venta')) {
-                allInventarioToImport.push(...dataRows);
+                allInventarioToImport.push(...dataRows as any[]);
                 totalVehiculosImportados += dataRows.length;
-              } else if (headers.includes('nombre') || headers.includes('telefono') || headers.includes('dni')) {
-                allClientesToImport.push(...dataRows);
+              } else if (headers.includes('nombre') || headers.includes('telefono') || headers.includes('dni') || headers.includes('numero_documento')) {
+                allClientesToImport.push(...dataRows as any[]);
                 totalClientesImportados += dataRows.length;
               }
             }

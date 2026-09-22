@@ -71,28 +71,32 @@ export const saveWhatsAppConfig = (config: WhatsAppConfig): void => {
 
 export const formatWhatsAppMessage = (
   template: string,
-  cuota: CuotaPagare,
-  cliente?: Cliente | null
+  cuota?: CuotaPagare | null,
+  cliente?: Cliente | null,
+  extraParams?: { vehiculo?: string; monto?: string }
 ): string => {
+  if (!template) return '';
   const name = cliente ? `${cliente.nombre} ${cliente.apellido || ''}`.trim() : 'Cliente';
-  const pagareNum = cuota.numero_pagare || `PAG-${String(cuota.numero_cuota).padStart(4, '0')}`;
+  const pagareNum = cuota?.numero_pagare || (cuota ? `PAG-${String(cuota.numero_cuota).padStart(4, '0')}` : '');
   
   // Format AR date cleanly
-  let fechaVencStr = cuota.fecha_vencimiento ? cuota.fecha_vencimiento.split('T')[0] : '-';
+  let fechaVencStr = cuota?.fecha_vencimiento ? cuota.fecha_vencimiento.split('T')[0] : '-';
   const parts = fechaVencStr.split('-');
   if (parts.length === 3) fechaVencStr = `${parts[2]}/${parts[1]}/${parts[0]}`;
 
-  const monedaText = cuota.moneda === 'ARS' ? 'ARS ($)' : 'USD ($)';
-  const montoText = `${monedaText} ${cuota.monto_cuota.toLocaleString('es-AR')}`;
-  const cuotaText = `Cuota ${cuota.numero_cuota} de ${cuota.prestamo?.cantidad_cuotas || 12}`;
+  const monedaText = cuota ? (cuota.moneda === 'ARS' ? 'ARS ($)' : 'USD ($)') : '';
+  const montoText = extraParams?.monto || (cuota ? `${monedaText} ${cuota.monto_cuota.toLocaleString('es-AR')}` : '');
+  const cuotaText = cuota ? `Cuota ${cuota.numero_cuota} de ${cuota.prestamo?.cantidad_cuotas || 12}` : '';
+  const vehiculoText = extraParams?.vehiculo || 'el vehículo de tu interés';
 
   return template
-    .replace(/\{nombre_cliente\}/g, name)
-    .replace(/\{numero_pagare\}/g, pagareNum)
-    .replace(/\{numero_cuota\}/g, cuotaText)
-    .replace(/\{monto_formateado\}/g, montoText)
-    .replace(/\{fecha_vencimiento\}/g, fechaVencStr)
-    .replace(/\{estado_cuota\}/g, cuota.estado);
+    .replace(/\{nombre_cliente\}|\{\{nombre_cliente\}\}|\{\{cliente_nombre\}\}/g, name)
+    .replace(/\{numero_pagare\}|\{\{numero_pagare\}\}|\{\{pagare_nro\}\}/g, pagareNum)
+    .replace(/\{numero_cuota\}|\{\{numero_cuota\}\}|\{\{cuota_nro\}\}/g, cuotaText)
+    .replace(/\{monto_formateado\}|\{\{monto_formateado\}\}|\{\{monto\}\}/g, montoText)
+    .replace(/\{fecha_vencimiento\}|\{\{fecha_vencimiento\}\}|\{\{vencimiento\}\}/g, fechaVencStr)
+    .replace(/\{estado_cuota\}|\{\{estado_cuota\}\}|\{\{estado\}\}/g, cuota?.estado || '')
+    .replace(/\{vehiculo\}|\{\{vehiculo\}\}|\{\{vehiculo_nombre\}\}/g, vehiculoText);
 };
 
 export const buildWhatsAppWebUrl = (phone?: string, text?: string): string => {

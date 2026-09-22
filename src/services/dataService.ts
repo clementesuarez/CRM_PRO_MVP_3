@@ -14,7 +14,8 @@ import {
   PrestamoPagare,
   CuotaPagare,
   EstadoCuota,
-  ReclamoCobranza
+  ReclamoCobranza,
+  PlantillaWhatsApp
 } from '../types/crm';
 import { PerfilUsuario, UserRole } from '../types/auth';
 import { getActiveRoleSync } from '../context/AuthContext';
@@ -1091,5 +1092,19 @@ export const dataService = {
 
   parseDni(rawInput: string): DniParsedResult {
     return parseDniPdf417(rawInput);
+  },
+
+  async getPlantillasWsp(): Promise<PlantillaWhatsApp[]> {
+    const res = await apiRequest<PlantillaWhatsApp[]>('/plantillas-wsp');
+    return res || [];
+  },
+
+  async savePlantillaWsp(plantilla: Partial<PlantillaWhatsApp>): Promise<{ success: boolean; plantillas?: PlantillaWhatsApp[] }> {
+    const res = await apiRequest<{ success: boolean; plantillas?: PlantillaWhatsApp[] }>('/plantillas-wsp', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(plantilla)
+    });
+    return res || { success: false };
   }
 };

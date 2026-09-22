@@ -238,6 +238,16 @@ export function initDb() {
       FOREIGN KEY (cliente_id) REFERENCES clientes(id) ON DELETE CASCADE
     );
 
+    CREATE TABLE IF NOT EXISTS plantillas_wsp (
+      id TEXT PRIMARY KEY,
+      modulo TEXT NOT NULL,
+      codigo TEXT UNIQUE NOT NULL,
+      titulo TEXT NOT NULL,
+      contenido TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
     -- TRIGGERS DE REPLICACIÓN AUTOMÁTICA ENTRE VEHICULOS E INVENTARIO
     CREATE TRIGGER IF NOT EXISTS trg_vehiculos_to_inventario_insert
     AFTER INSERT ON vehiculos
@@ -555,5 +565,65 @@ function ensureDefaultSeedUsers() {
   }
 }
 
+function ensureDefaultPlantillasWsp() {
+  try {
+    const count = db.prepare('SELECT COUNT(*) as count FROM plantillas_wsp').get();
+    if (count.count === 0) {
+      const stmt = db.prepare(`
+        INSERT INTO plantillas_wsp (id, modulo, codigo, titulo, contenido, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+      `);
+      const now = new Date().toISOString();
+      const defaults = [
+        {
+          id: 'pl_1',
+          modulo: 'pagares',
+          codigo: 'reclamo_mora',
+          titulo: 'Mora Vencida (Cobranzas)',
+          contenido: 'Hola {nombre_cliente}, te contactamos del área de administración y cobranzas de la Concesionaria. ⚠️📜\n\nTe informamos que tu Pagaré *{numero_pagare}* ({numero_cuota}) por el monto de *{monto_formateado}*, registró fecha de vencimiento el *{fecha_vencimiento}* y figura actualmente impago con mora.\n\nTe solicitamos por favor contactarte a la brevedad para regularizar el estado de tu cuenta o hacernos llegar el comprobante de transferencia correspondiente. ¡Muchas gracias!'
+        },
+        {
+          id: 'pl_2',
+          modulo: 'pagares',
+          codigo: 'proximo_vencer',
+          titulo: 'Recordatorio Próximo a Vencer',
+          contenido: 'Hola {nombre_cliente}, te saludamos de la Concesionaria. 🚗📜\n\nTe enviamos un recordatorio sobre tu Pagaré *{numero_pagare}* ({numero_cuota}) por el monto de *{monto_formateado}*, con fecha de vencimiento el *{fecha_vencimiento}*.\n\nQuedamos a tu entera disposición para coordinar el cobro o recibir tu comprobante. ¡Muchas gracias!'
+        },
+        {
+          id: 'pl_3',
+          modulo: 'pagares',
+          codigo: 'aviso_general',
+          titulo: 'Aviso General de Pagos',
+          contenido: 'Hola {nombre_cliente}, te saludamos de la Concesionaria respecto a tu plan de pagos y pagarés.\n\nQuedamos a tu entera disposición para cualquier consulta o coordinación de tus cuotas. ¡Saludos cordiales!'
+        },
+        {
+          id: 'pl_4',
+          modulo: 'clientes',
+          codigo: 'cotizacion',
+          titulo: 'Propuesta Comercial / Cotización',
+          contenido: 'Hola {nombre_cliente}, te escribo de la agencia respecto al *{vehiculo}*{monto_formateado ? ` (Valor: *{monto_formateado}*)` : ""}.\n\n¿Te gustaría que te envíe los detalles del plan de financiación o la tasación de tu usado en permuta? 🚗✨'
+        },
+        {
+          id: 'pl_5',
+          modulo: 'clientes',
+          codigo: 'seguimiento',
+          titulo: 'Seguimiento Post-Cotización',
+          contenido: 'Hola {nombre_cliente}, ¿cómo estás? Te contacto para hacer seguimiento sobre el *{vehiculo}* que estuvimos viendo.\n\n¿Querés que coordinemos para que pases por el salón a probarlo? 🔑'
+        }
+      ];
+
+      db.transaction(() => {
+        defaults.forEach(p => {
+          stmt.run(p.id, p.modulo, p.codigo, p.titulo, p.contenido, now, now);
+        });
+      })();
+      console.log('[SQLite] Plantillas de WhatsApp inicializadas en DB.');
+    }
+  } catch (err) {
+    console.error('[SQLite] Error inicializando plantillas de WhatsApp:', err);
+  }
+}
+
 initDb();
 ensureDefaultSeedUsers();
+ensureDefaultPlantillasWsp();
