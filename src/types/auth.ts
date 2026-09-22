@@ -19,13 +19,17 @@ export type Permission =
   | 'gestionar_pagares'
   | 'gestionar_usuarios'
   | 'consola_superadmin'
-  | 'eliminar_vehiculo';
+  | 'eliminar_vehiculo'
+  | 'ver_encargos'
+  | 'ver_posventa';
 
 export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
   vendedor: [
     'crear_prospecto',
     'crear_presupuesto',
     'ver_inventario_lista',
+    'ver_encargos',
+    'ver_posventa',
   ],
   admin: [
     'crear_prospecto',
@@ -36,6 +40,8 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'eliminar_vehiculo',
     'gestionar_pagares',
     'gestionar_usuarios',
+    'ver_encargos',
+    'ver_posventa',
   ],
   superadmin: [
     'crear_prospecto',
@@ -47,6 +53,8 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'gestionar_pagares',
     'gestionar_usuarios',
     'consola_superadmin',
+    'ver_encargos',
+    'ver_posventa',
   ],
   dev: [
     'crear_prospecto',
@@ -58,6 +66,8 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'gestionar_pagares',
     'gestionar_usuarios',
     'consola_superadmin',
+    'ver_encargos',
+    'ver_posventa',
   ],
 };
 
@@ -66,7 +76,7 @@ export const ROLE_LABELS: Record<UserRole, { label: string; badge: string; color
     label: 'Vendedor Comercial',
     badge: 'Comercial',
     color: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
-    desc: 'Solo ve precio de lista y sus presupuestos. Costos, pagarés y admin bloqueados.',
+    desc: 'Acceso a Pipeline, Clientes, Stock, Encargos y Posventa. Costos, pagarés y admin protegidos.',
   },
   admin: {
     label: 'Admin (Dueño de Agencia)',
