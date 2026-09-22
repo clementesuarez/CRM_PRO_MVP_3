@@ -19,10 +19,12 @@ if !ERRORLEVEL! NEQ 0 (
     exit /b 1
 )
 
-:: 2. Instalacion de dependencias si falta node_modules
-if not exist "node_modules\" (
-    echo [1/2] Primera ejecucion detectada. Instalando modulos necesarios...
-    call npm install --omit=dev
+:: 2. Verificacion de node_modules precompilados (Zero-Compile / Zero-Setup)
+if exist "node_modules\" (
+    echo [1/2] Modulos de ejecucion detectados (Ejecucion directa sin compilacion).
+) else (
+    echo [1/2] Instalando modulos de produccion (Fallback)...
+    call npm install --omit=dev --no-audit --no-fund
     if !ERRORLEVEL! NEQ 0 (
         echo [ERROR] Fallo npm install. Verifique la conexion a Internet.
         pause
@@ -30,7 +32,7 @@ if not exist "node_modules\" (
     )
 )
 
-:: 3. Lanzar navegador al iniciar
+:: 3. Lanzar navegador y levantar servidor
 echo [2/2] Levantando aplicacion...
 start "" http://localhost:5173
 

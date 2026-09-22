@@ -37,7 +37,7 @@ function copyRecursiveSync(src, dest) {
   }
 }
 
-// 1. Copiar Frontend Compilado (dist) y Backend (server)
+// 1. Copiar Frontend Compilado (dist), Backend (server) y node_modules precompilados
 console.log('>>> Copiando archivos compilados (dist) y backend (server)...');
 copyRecursiveSync(path.join(rootDir, 'dist'), path.join(demoDir, 'dist'));
 copyRecursiveSync(path.join(rootDir, 'server'), path.join(demoDir, 'server'));
@@ -50,6 +50,12 @@ fs.copyFileSync(path.join(rootDir, 'package.json'), path.join(prodDir, 'package.
 if (fs.existsSync(path.join(rootDir, 'package-lock.json'))) {
   fs.copyFileSync(path.join(rootDir, 'package-lock.json'), path.join(demoDir, 'package-lock.json'));
   fs.copyFileSync(path.join(rootDir, 'package-lock.json'), path.join(prodDir, 'package-lock.json'));
+}
+
+if (fs.existsSync(path.join(rootDir, 'node_modules'))) {
+  console.log('>>> Copiando node_modules precompilados (Zero-Compile / Zero-Setup)...');
+  fs.cpSync(path.join(rootDir, 'node_modules'), path.join(demoDir, 'node_modules'), { recursive: true });
+  fs.cpSync(path.join(rootDir, 'node_modules'), path.join(prodDir, 'node_modules'), { recursive: true });
 }
 
 // 2. Copiar crm_local.db para DEMO (con datos)
@@ -101,10 +107,12 @@ const batContentLines = [
   '    exit /b 1',
   ')',
   '',
-  ':: 2. Instalacion de dependencias si falta node_modules',
-  'if not exist "node_modules\\" (',
-  '    echo [1/2] Primera ejecucion detectada. Instalando modulos necesarios...',
-  '    call npm install --omit=dev',
+  ':: 2. Verificacion de node_modules precompilados (Zero-Compile / Zero-Setup)',
+  'if exist "node_modules\\" (',
+  '    echo [1/2] Modulos de ejecucion detectados (Ejecucion directa sin compilacion).',
+  ') else (',
+  '    echo [1/2] Instalando modulos de produccion (Fallback)...',
+  '    call npm install --omit=dev --no-audit --no-fund',
   '    if !ERRORLEVEL! NEQ 0 (',
   '        echo [ERROR] Fallo npm install. Verifique la conexion a Internet.',
   '        pause',
