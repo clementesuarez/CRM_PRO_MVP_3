@@ -68,9 +68,8 @@ export const Navbar: React.FC<NavbarProps> = ({
               </div>
               <div>
                 <h1 className="text-sm sm:text-base font-black tracking-tight text-slate-100 flex items-center gap-1.5 leading-none">
-                  AutoCRM <span className="text-cyan-400 font-extrabold text-[10px] sm:text-xs">PRO MVP 3</span>
+                  CRM Agencia <span className="text-cyan-400 font-extrabold text-[10px] sm:text-xs bg-cyan-950 px-2 py-0.5 rounded-full border border-cyan-500/30">Versión 1.0</span>
                 </h1>
-                <p className="text-[9px] sm:text-[10px] text-slate-400 font-medium">RBAC (3 Roles) + Catálogo Predictivo</p>
               </div>
             </div>
 
@@ -516,18 +515,21 @@ export const Navbar: React.FC<NavbarProps> = ({
 
             {/* Logout Action */}
             {isAuthenticated && (
-              <div className="pt-2 border-t border-slate-800">
+              <div className="pt-2 border-t border-slate-800 space-y-3">
                 <button
                   type="button"
                   onClick={() => {
                     setShowMobileMoreSheet(false);
                     logout();
                   }}
-                  className="w-full p-3.5 rounded-2xl bg-rose-950/40 text-rose-300 border border-rose-500/30 hover:bg-rose-900/60 transition font-bold text-sm flex items-center justify-center gap-2"
+                  className="w-full p-3.5 rounded-2xl bg-rose-950/40 text-rose-300 border border-rose-500/30 hover:bg-rose-900/60 transition font-bold text-sm flex items-center justify-center gap-2 cursor-pointer"
                 >
                   <LogOut className="w-4.5 h-4.5 text-rose-400" />
                   <span>Cerrar Sesión Activa</span>
                 </button>
+                <div className="text-center text-[10px] text-slate-500 font-medium">
+                  © 2026 Memens - Todos los derechos reservados.
+                </div>
               </div>
             )}
           </div>

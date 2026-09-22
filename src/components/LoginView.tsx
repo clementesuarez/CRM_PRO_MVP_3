@@ -50,13 +50,13 @@ export const LoginView: React.FC = () => {
             <ShieldCheck className="w-8 h-8 text-cyan-400" />
           </div>
           <h1 className="text-2xl font-black tracking-tight text-white flex items-center justify-center gap-2">
-            AutoCRM <span className="bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent">PRO</span>
+            CRM <span className="bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent">Agencia</span>
             <span className="text-[10px] px-2 py-0.5 rounded-full bg-cyan-950 border border-cyan-500/30 text-cyan-300 font-mono font-bold">
-              SQLite 3.0
+              Versión 1.0
             </span>
           </h1>
           <p className="text-xs text-slate-400">
-            Sistema Comercial & Tablero Directivo para Agencia Automotor
+            Sistema Comercial & Tablero Directivo para Concesionario
           </p>
         </div>
 
@@ -142,9 +142,14 @@ export const LoginView: React.FC = () => {
         </div>
 
         {/* Footer info */}
-        <div className="text-center mt-6 text-[11px] text-slate-500 flex items-center justify-center gap-1.5">
-          <Database className="w-3.5 h-3.5 text-slate-400" />
-          <span>Persistencia SQL en tiempo real & DB Local <strong className="text-slate-400 font-mono">crm_local.db</strong></span>
+        <div className="text-center mt-6 text-[11px] text-slate-500 space-y-1">
+          <div className="flex items-center justify-center gap-1.5">
+            <Database className="w-3.5 h-3.5 text-slate-400" />
+            <span>Persistencia SQL en tiempo real & DB Local <strong className="text-slate-400 font-mono">crm_local.db</strong></span>
+          </div>
+          <div className="text-slate-600 font-medium text-[10px]">
+            © 2026 Memens - Todos los derechos reservados.
+          </div>
         </div>
       </div>
     </div>

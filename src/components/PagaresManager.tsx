@@ -47,7 +47,8 @@ import {
   Square,
   Radio,
   Zap,
-  Sparkles
+  Sparkles,
+  ArrowLeft
 } from 'lucide-react';
 
 // Helper date formatter without UTC timezone offset shift
@@ -769,7 +770,7 @@ export const PagaresManager: React.FC = () => {
   });
 
   return (
-    <div className="space-y-6 pb-24 lg:pb-6">
+    <div className="space-y-6 pb-28 lg:pb-6 min-h-screen touch-pan-y">
       {/* Header Banner */}
       <div className="bg-gradient-to-r from-slate-900 via-emerald-950 to-slate-900 border border-emerald-500/30 rounded-2xl p-6 shadow-2xl relative overflow-hidden">
         <div className="absolute right-0 top-0 bottom-0 opacity-10 flex items-center pr-8 pointer-events-none">
@@ -1476,8 +1477,8 @@ export const PagaresManager: React.FC = () => {
 
       {/* MODAL EDITAR COMPLETO DE PAGARÉ */}
       {selectedCuotaForEdit && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md">
-          <div className="bg-slate-900 border border-slate-800 w-full max-w-md rounded-2xl p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 z-[60] flex items-start sm:items-center justify-center p-2 sm:p-4 bg-slate-950/85 backdrop-blur-md overflow-y-auto touch-pan-y">
+          <div className="bg-slate-900 border border-slate-800 w-full max-w-md rounded-2xl p-4 sm:p-6 shadow-2xl space-y-4 max-h-[92vh] my-auto overflow-y-auto">
             <h3 className="text-lg font-bold text-white flex items-center gap-2">
               <Edit2 className="w-5 h-5 text-amber-400" /> Editar Pagaré Físico (Cuota {selectedCuotaForEdit.numero_cuota})
             </h3>
@@ -1600,8 +1601,8 @@ export const PagaresManager: React.FC = () => {
 
       {/* MODAL REGISTRAR PAGO */}
       {selectedCuotaForPay && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md">
-          <div className="bg-slate-900 border border-slate-800 w-full max-w-md rounded-2xl p-6 shadow-2xl space-y-4">
+        <div className="fixed inset-0 z-[60] flex items-start sm:items-center justify-center p-2 sm:p-4 bg-slate-950/85 backdrop-blur-md overflow-y-auto touch-pan-y">
+          <div className="bg-slate-900 border border-slate-800 w-full max-w-md rounded-2xl p-4 sm:p-6 shadow-2xl space-y-4 max-h-[92vh] my-auto overflow-y-auto">
             <h3 className="text-lg font-bold text-white flex items-center gap-2">
               <DollarSign className="w-5 h-5 text-emerald-400" /> Registrar Cobro de Pagaré {selectedCuotaForPay.numero_pagare || `Nº ${selectedCuotaForPay.numero_cuota}`}
             </h3>
@@ -1670,8 +1671,8 @@ export const PagaresManager: React.FC = () => {
 
       {/* MODAL REGISTRAR RECLAMO */}
       {selectedCuotaForClaim && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md">
-          <div className="bg-slate-900 border border-slate-800 w-full max-w-lg rounded-2xl p-6 shadow-2xl space-y-4">
+        <div className="fixed inset-0 z-[60] flex items-start sm:items-center justify-center p-2 sm:p-4 bg-slate-950/85 backdrop-blur-md overflow-y-auto touch-pan-y">
+          <div className="bg-slate-900 border border-slate-800 w-full max-w-lg rounded-2xl p-4 sm:p-6 shadow-2xl space-y-4 max-h-[92vh] my-auto overflow-y-auto">
             <h3 className="text-lg font-bold text-white flex items-center gap-2">
               <PhoneCall className="w-5 h-5 text-indigo-400" /> Registrar Reclamo (Pagaré {selectedCuotaForClaim.numero_pagare || `Nº ${selectedCuotaForClaim.numero_cuota}`})
             </h3>
@@ -1749,34 +1750,45 @@ export const PagaresManager: React.FC = () => {
       )}
       {/* MODAL DETALLE DE PAGARÉS POR CLIENTE */}
       {selectedGroupForModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md">
-          <div className="bg-slate-900 border border-slate-800 w-full max-w-5xl rounded-2xl shadow-2xl flex flex-col max-h-[92vh] overflow-hidden">
+        <div className="fixed inset-0 z-50 flex items-start sm:items-center justify-center p-2 sm:p-4 bg-slate-950/85 backdrop-blur-md overflow-y-auto touch-pan-y">
+          <div className="bg-slate-900 border border-slate-800 w-full max-w-5xl rounded-2xl shadow-2xl flex flex-col max-h-[94vh] my-auto overflow-hidden">
             {/* Modal Header */}
-            <div className="p-6 bg-slate-950 border-b border-slate-800 flex items-center justify-between shrink-0">
-              <div>
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="text-xs bg-emerald-500/20 text-emerald-300 font-bold px-2.5 py-0.5 rounded border border-emerald-500/30 uppercase">
-                    Ficha Financiera de Pagarés por Cliente
-                  </span>
-                  {selectedGroupForModal.tieneMora && (
-                    <span className="text-xs bg-red-500/20 text-red-300 font-bold px-2.5 py-0.5 rounded border border-red-500/30 animate-pulse">
-                      🔴 Alerta: Posee Mora Pendiente
+            <div className="p-4 sm:p-5 bg-slate-950 border-b border-slate-800 flex items-center justify-between shrink-0 sticky top-0 z-20">
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setSelectedGroupClientId(null)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-700 text-slate-200 text-xs font-bold hover:text-white shrink-0 active:scale-95 cursor-pointer"
+                >
+                  <ArrowLeft className="w-4 h-4 text-cyan-400" />
+                  <span>Volver</span>
+                </button>
+                <div>
+                  <div className="flex flex-wrap items-center gap-2 mb-1">
+                    <span className="text-[10px] sm:text-xs bg-emerald-500/20 text-emerald-300 font-bold px-2 py-0.5 rounded border border-emerald-500/30 uppercase">
+                      Ficha Financiera de Pagarés
                     </span>
-                  )}
-                </div>
-                <h2 className="text-2xl font-black text-white flex items-center gap-2">
-                  👤 {selectedGroupForModal.cliente ? `${selectedGroupForModal.cliente.nombre} ${selectedGroupForModal.cliente.apellido || ''}` : 'Cliente'}
-                </h2>
-                <div className="text-xs text-slate-400 flex items-center gap-4 mt-1">
-                  {selectedGroupForModal.cliente?.numero_documento && <span>🆔 Doc: {selectedGroupForModal.cliente.numero_documento}</span>}
-                  {selectedGroupForModal.cliente?.telefono && <span>📞 Teléfono: {selectedGroupForModal.cliente.telefono}</span>}
+                    {selectedGroupForModal.tieneMora && (
+                      <span className="text-[10px] sm:text-xs bg-red-500/20 text-red-300 font-bold px-2 py-0.5 rounded border border-red-500/30 animate-pulse">
+                        🔴 Mora Pendiente
+                      </span>
+                    )}
+                  </div>
+                  <h2 className="text-base sm:text-xl font-black text-white flex items-center gap-2 leading-tight">
+                    👤 {selectedGroupForModal.cliente ? `${selectedGroupForModal.cliente.nombre} ${selectedGroupForModal.cliente.apellido || ''}` : 'Cliente'}
+                  </h2>
+                  <div className="text-[11px] sm:text-xs text-slate-400 flex flex-wrap items-center gap-3 mt-0.5">
+                    {selectedGroupForModal.cliente?.numero_documento && <span>🆔 Doc: {selectedGroupForModal.cliente.numero_documento}</span>}
+                    {selectedGroupForModal.cliente?.telefono && <span>📞 Teléfono: {selectedGroupForModal.cliente.telefono}</span>}
+                  </div>
                 </div>
               </div>
               <button
                 onClick={() => setSelectedGroupClientId(null)}
-                className="p-2 hover:bg-slate-800 rounded-xl text-slate-400 hover:text-white transition cursor-pointer"
+                className="p-2 hover:bg-slate-800 rounded-xl text-slate-400 hover:text-white transition cursor-pointer shrink-0"
+                title="Cerrar ventana"
               >
-                <X className="w-6 h-6" />
+                <X className="w-5 h-5" />
               </button>
             </div>
 
@@ -1877,7 +1889,7 @@ export const PagaresManager: React.FC = () => {
             </div>
 
             {/* Modal Scrollable Table of Cuotas for this client */}
-            <div className="overflow-y-auto p-4 flex-1">
+            <div className="overflow-x-auto w-full touch-pan-x overflow-y-auto p-2 sm:p-4 flex-1">
               <table className="w-full text-left text-sm text-slate-300">
                 <thead className="bg-slate-950 text-xs font-semibold text-slate-400 uppercase tracking-wider sticky top-0 z-10 border-b border-slate-800">
                   <tr>
@@ -2056,9 +2068,10 @@ export const PagaresManager: React.FC = () => {
                 )}
                 <button
                   onClick={() => setSelectedGroupClientId(null)}
-                  className="px-5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold cursor-pointer transition"
+                  className="px-5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold cursor-pointer transition flex items-center gap-1.5"
                 >
-                  Cerrar Ficha
+                  <ArrowLeft className="w-3.5 h-3.5 text-slate-400" />
+                  <span>Volver / Cerrar Ficha</span>
                 </button>
               </div>
             </div>

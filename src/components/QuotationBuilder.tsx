@@ -14,7 +14,8 @@ import {
   MessageSquare,
   Edit3,
   Lock,
-  Scan
+  Scan,
+  ArrowLeft
 } from 'lucide-react';
 import { Cliente, Inventario, Permuta, Presupuesto, PresupuestoVehiculoItem, TipoMoneda } from '../types/crm';
 import { WhatsAppModal } from './WhatsAppModal';
@@ -403,25 +404,33 @@ _Cotización válida por 7 días. ¡Consultanos por entrega inmediata!_`;
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-fade-in overflow-y-auto">
-      <div className="glass-panel w-full max-w-3xl rounded-2xl border border-slate-700/80 p-6 shadow-2xl my-8">
+    <div className="fixed inset-0 z-50 flex items-start sm:items-center justify-center p-2 sm:p-4 bg-black/85 backdrop-blur-md animate-fade-in overflow-y-auto touch-pan-y">
+      <div className="glass-panel w-full max-w-3xl rounded-2xl border border-slate-700/80 p-4 sm:p-6 shadow-2xl my-auto max-h-[94vh] overflow-y-auto">
 
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-slate-800 pb-4 mb-5">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-xl bg-gradient-to-br from-cyan-500 to-blue-600 text-slate-950 font-black">
+        <div className="flex items-center justify-between border-b border-slate-800 pb-4 mb-5 sticky top-0 bg-slate-950/90 backdrop-blur z-20 py-2">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-700 text-slate-200 text-xs font-bold hover:text-white shrink-0 active:scale-95 cursor-pointer"
+            >
+              <ArrowLeft className="w-4 h-4 text-cyan-400" />
+              <span>Volver</span>
+            </button>
+            <div className="p-2.5 rounded-xl bg-gradient-to-br from-cyan-500 to-blue-600 text-slate-950 font-black hidden sm:block">
               {presupuestoToEdit ? <Edit3 className="w-5 h-5" /> : <Sparkles className="w-5 h-5" />}
             </div>
             <div>
-              <h2 className="text-lg font-extrabold text-slate-100">
-                {presupuestoToEdit ? 'Editar Cotización / Borrador' : 'Cotizador Rápido & Permuta'}
+              <h2 className="text-sm sm:text-lg font-extrabold text-slate-100">
+                {presupuestoToEdit ? 'Editar Cotización' : 'Cotizador Rápido & Permuta'}
               </h2>
-              <p className="text-xs text-slate-400">
-                {presupuestoToEdit ? `Modificando presupuesto para ${selectedCliente?.nombre || 'Cliente'}` : 'Genera una propuesta comercial profesional en menos de 1 minuto'}
+              <p className="text-[11px] sm:text-xs text-slate-400">
+                {presupuestoToEdit ? `Modificando presupuesto para ${selectedCliente?.nombre || 'Cliente'}` : 'Genera una propuesta comercial profesional en 1 minuto'}
               </p>
             </div>
           </div>
-          <button onClick={onClose} className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition">
+          <button onClick={onClose} className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition shrink-0" title="Cerrar Cotizador">
             <X className="w-5 h-5" />
           </button>
         </div>

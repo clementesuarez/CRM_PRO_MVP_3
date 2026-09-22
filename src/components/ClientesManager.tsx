@@ -28,7 +28,8 @@ import {
   Send,
   DollarSign,
   Scan,
-  Sparkles
+  Sparkles,
+  ArrowLeft
 } from 'lucide-react';
 import { 
   Cliente, 
@@ -719,21 +720,32 @@ export const ClientesManager: React.FC<ClientesManagerProps> = ({
 
       {/* FULL CLIENT PROFILE MODAL WITH HISTORIAL DE INTERACCIONES TAB */}
       {modalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/85 backdrop-blur-md p-3 sm:p-4 animate-fade-in">
-          <div className="bg-slate-900 w-full max-w-3xl rounded-2xl border border-slate-700 shadow-2xl flex flex-col max-h-[90vh] overflow-hidden">
+        <div className="fixed inset-0 z-50 flex items-start sm:items-center justify-center p-2 sm:p-4 bg-slate-950/85 backdrop-blur-md animate-fade-in overflow-y-auto touch-pan-y">
+          <div className="bg-slate-900 w-full max-w-3xl rounded-2xl border border-slate-700 shadow-2xl flex flex-col max-h-[92vh] my-auto overflow-hidden">
             {/* Header Sticky & Pinned */}
-            <div className="shrink-0 p-5 pb-3 border-b border-slate-800 bg-slate-900/95 z-10 space-y-3">
+            <div className="shrink-0 p-4 sm:p-5 pb-3 border-b border-slate-800 bg-slate-900/95 z-20 sticky top-0 space-y-3">
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="p-2.5 rounded-xl bg-cyan-500/20 text-cyan-400 font-extrabold">
+                <div className="flex items-center gap-2 sm:gap-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setModalOpen(false);
+                      if (onClearSelectedClienteId) onClearSelectedClienteId();
+                    }}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-700 text-slate-200 text-xs font-bold hover:text-white shrink-0 active:scale-95 cursor-pointer"
+                  >
+                    <ArrowLeft className="w-4 h-4 text-cyan-400" />
+                    <span>Volver</span>
+                  </button>
+                  <div className="p-2.5 rounded-xl bg-cyan-500/20 text-cyan-400 font-extrabold hidden sm:block">
                     <User className="w-6 h-6" />
                   </div>
                   <div>
-                    <h3 className="text-lg font-extrabold text-slate-100">
-                      {editingCliente ? `Ficha Comercial & Historial: ${getClienteFullName(editingCliente)}` : 'Registrar Nuevo Cliente'}
+                    <h3 className="text-sm sm:text-lg font-extrabold text-slate-100 leading-snug">
+                      {editingCliente ? `Ficha Comercial: ${getClienteFullName(editingCliente)}` : 'Registrar Nuevo Cliente'}
                     </h3>
-                    <p className="text-xs text-slate-400">
-                      Gestión integral del comprador, historial de contactos y seguimiento de ventas
+                    <p className="text-[11px] sm:text-xs text-slate-400">
+                      Gestión integral del comprador e historial de contactos
                     </p>
                   </div>
                 </div>
@@ -742,7 +754,8 @@ export const ClientesManager: React.FC<ClientesManagerProps> = ({
                     setModalOpen(false);
                     if (onClearSelectedClienteId) onClearSelectedClienteId();
                   }} 
-                  className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 cursor-pointer"
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 cursor-pointer shrink-0"
+                  title="Cerrar Ficha"
                 >
                   <X className="w-5 h-5" />
                 </button>

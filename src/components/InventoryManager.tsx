@@ -25,7 +25,8 @@ import {
   ShoppingBag,
   ExternalLink,
   Trash2,
-  ShieldAlert
+  ShieldAlert,
+  ArrowLeft
 } from 'lucide-react';
 import { Cliente, EstadoVehiculo, Inventario, OrigenStock, TipoMoneda, TipoVehiculo } from '../types/crm';
 import { flexSearchMatch } from '../utils/searchHelper';
@@ -321,24 +322,25 @@ export const InventoryManager: React.FC<InventoryManagerProps> = ({
           </p>
         </div>
 
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-          {/* BOTÓN REGISTRAR COMPRA DIRECTA */}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
+          {/* BOTÓN REGISTRAR COMPRA DIRECTA (Secundario Estilizado Emerald) */}
           <button
             onClick={() => handleOpenAdd('Compra Directa')}
-            className="px-4 py-2.5 rounded-xl bg-purple-500/10 text-purple-300 border border-purple-500/30 hover:bg-purple-500 hover:text-white font-extrabold text-xs transition flex items-center justify-center gap-2 shadow-lg shadow-purple-500/10"
-            title="Registrar una compra de vehículo usado a un cliente sin venta asociada"
+            className="px-4 py-2.5 rounded-xl bg-emerald-950/40 text-emerald-300 border border-emerald-500/50 hover:bg-emerald-600 hover:text-white font-extrabold text-xs transition flex items-center justify-center gap-2 shadow-md shadow-emerald-950/30 active:scale-95 cursor-pointer"
+            title="Registrar compra directa de vehículo usado a cliente (Operación en efectivo / toma inmediata)"
           >
-            <ShoppingBag className="w-4 h-4 text-purple-400" />
-            + Registrar Compra Directa
+            <DollarSign className="w-4.5 h-4.5 text-emerald-400" />
+            <span>+ Registrar Compra Directa (Efectivo / Toma)</span>
           </button>
 
-          {/* BOTÓN INGRESAR NUEVO VEHÍCULO */}
+          {/* BOTÓN INGRESAR NUEVO VEHÍCULO (Primario Cyan/Blue) */}
           <button
             onClick={() => handleOpenAdd()}
-            className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 font-extrabold text-xs transition flex items-center justify-center gap-2 shadow-lg shadow-cyan-500/20 active:scale-95"
+            className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 font-black text-xs transition flex items-center justify-center gap-2 shadow-lg shadow-cyan-500/20 active:scale-95 cursor-pointer"
+            title="Alta general de vehículo en stock (Salón, Consignación o Permuta)"
           >
-            <Plus className="w-4 h-4" />
-            + Ingresar Nuevo Vehículo
+            <Plus className="w-4.5 h-4.5" />
+            <span>+ Ingresar Nuevo Vehículo (Stock / Consignación)</span>
           </button>
         </div>
       </div>
@@ -936,16 +938,27 @@ export const InventoryManager: React.FC<InventoryManagerProps> = ({
         <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/80 backdrop-blur-md p-2 sm:p-4 md:p-6 animate-fade-in overflow-y-auto">
           <div className="glass-panel w-full max-w-4xl rounded-2xl border border-slate-700 shadow-2xl flex flex-col max-h-[92vh] my-auto bg-slate-950/95 overflow-hidden">
             {/* Sticky Header */}
-            <div className="flex items-center justify-between border-b border-slate-800 p-4 sm:p-5 bg-slate-950 shrink-0">
+            <div className="flex items-center justify-between border-b border-slate-800 p-4 sm:p-5 bg-slate-950 shrink-0 sticky top-0 z-30">
               <div className="flex items-center gap-3">
-                <div className="p-2.5 rounded-xl bg-cyan-500/20 text-cyan-400 font-extrabold shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setModalOpen(false)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-700 text-slate-200 text-xs font-bold hover:text-white shrink-0 active:scale-95 cursor-pointer"
+                >
+                  <ArrowLeft className="w-4 h-4 text-cyan-400" />
+                  <span>Volver</span>
+                </button>
+                <div className="p-2.5 rounded-xl bg-cyan-500/20 text-cyan-400 font-extrabold shrink-0 hidden sm:block">
                   <Car className="w-6 h-6" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-extrabold text-slate-100">
-                    {editingVehiculo ? `Ficha de Stock: ${editingVehiculo.marca} ${editingVehiculo.modelo}` : 'Ingresar Vehículo al Stock / Operación de Compra'}
+                  <h3 className="text-sm sm:text-lg font-extrabold text-slate-100 leading-snug">
+                    {editingVehiculo 
+                      ? `Ficha de Stock: ${editingVehiculo.marca} ${editingVehiculo.modelo}` 
+                      : (origenStock === 'Compra Directa' ? '🛒 Registrar Compra Directa a Cliente' : '🚗 Ingresar Nuevo Vehículo al Stock (Salón / Consignación)')
+                    }
                   </h3>
-                  <p className="text-xs text-slate-400">
+                  <p className="text-[11px] sm:text-xs text-slate-400">
                     Carga completa de datos técnicos, valores comerciales y vinculación del vendedor / propietario anterior
                   </p>
                 </div>
@@ -953,7 +966,8 @@ export const InventoryManager: React.FC<InventoryManagerProps> = ({
               <button 
                 type="button"
                 onClick={() => setModalOpen(false)} 
-                className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer"
+                className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer shrink-0"
+                title="Cerrar ventana"
               >
                 <X className="w-5 h-5" />
               </button>

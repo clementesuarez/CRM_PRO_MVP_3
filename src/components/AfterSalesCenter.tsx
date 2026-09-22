@@ -455,8 +455,8 @@ export const AfterSalesCenter: React.FC<AfterSalesCenterProps> = ({
 
       {/* FULL NOTE & COMMENTS POPUP MODAL */}
       {selectedNote && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-fade-in">
-          <div className="glass-panel w-full max-w-lg rounded-2xl border border-cyan-500/40 p-6 shadow-2xl space-y-4">
+        <div className="fixed inset-0 z-50 flex items-start sm:items-center justify-center p-2 sm:p-4 bg-black/85 backdrop-blur-md animate-fade-in overflow-y-auto touch-pan-y">
+          <div className="glass-panel w-full max-w-lg rounded-2xl border border-cyan-500/40 p-4 sm:p-6 shadow-2xl space-y-4 my-auto max-h-[92vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
               <div className="flex items-center gap-2 text-cyan-400 font-bold text-sm">
                 <FileText className="w-5 h-5" />

@@ -316,12 +316,14 @@ export const App: React.FC = () => {
             <span className="text-slate-400">Puerto API: <strong className="text-cyan-400 font-mono">5000</strong></span>
           </div>
 
-          <div className="flex items-center gap-4 text-[11px] text-slate-400">
+          <div className="flex flex-wrap items-center gap-3 text-[11px] text-slate-400">
             <span>Base Local: <strong className="text-cyan-300 font-mono">{clientes.length} Clientes / {inventario.length} Unidades</strong></span>
             <span>•</span>
             <span className="inline-flex items-center gap-1 text-emerald-400">
               <Database className="w-3.5 h-3.5" /> Modo WAL Activo
             </span>
+            <span>•</span>
+            <span className="text-slate-500 font-medium">© 2026 Memens - Todos los derechos reservados.</span>
           </div>
         </div>
       </footer>
