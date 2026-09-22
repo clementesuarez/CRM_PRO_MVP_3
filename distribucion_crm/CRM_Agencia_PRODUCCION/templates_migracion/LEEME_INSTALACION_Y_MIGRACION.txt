@@ -1,0 +1,42 @@
+==============================================================================
+          CRM AGENCIA AUTOMOTOR - MANUAL DE INSTALACIÓN Y MIGRACIÓN
+==============================================================================
+
+1. CREDENCIALES INICIALES DE ACCESO MAESTRO:
+------------------------------------------------------------------------------
+   - Usuario:    superadmin
+   - Contraseña: superadmin123
+
+   ⚠️ IMPORTANTE POR SEGURIDAD:
+   En el primer inicio de sesión, ingrese a la solapa "Admin -> Personal y Roles" 
+   o haga clic sobre su nombre de usuario en el margen superior derecho y seleccione 
+   "Cambiar Mi Contraseña" para actualizar la clave maestra.
+
+2. PUESTA EN MARCHA DEL SISTEMA:
+------------------------------------------------------------------------------
+   1. Haga doble clic en el archivo "instalar_y_ejecutar.bat".
+   2. El sistema verificará la instalación de Node.js, instalará las librerías 
+      necesarias e iniciará automáticamente el servidor en http://localhost:5173.
+   3. Para conectar teléfonos celulares o tablets de vendedores en la misma red LAN, 
+      ingrese la IP de la computadora servidora (ejemplo: http://192.168.1.50:5173).
+
+3. INSTRUCCIONES DE MIGRACIÓN DE DATOS (PLANTILLAS EXCEL / CSV):
+------------------------------------------------------------------------------
+   En esta carpeta "templates_migracion/" encontrará dos archivos base:
+
+   a) Plantilla_Clientes.csv:
+      - Complete con el listado de clientes de la concesionaria.
+      - Respete los nombres de las cabeceras (no modifique la primera fila).
+
+   b) Plantilla_Inventario.csv:
+      - Complete con el inventario de vehículos disponibles y tomados en consignación.
+
+   COMO CARGARLOS AL CRM:
+   - Ingrese al CRM con su usuario administrador.
+   - Vaya a la solapa "Admin -> Base de Datos & Resguardos".
+   - En la sección "Carga Masiva Multiarchivo desde Excel (.CSV)", haga clic en "Seleccionar Archivos".
+   - El CRM procesará la información e impactará los registros de forma directa en SQLite.
+
+==============================================================================
+                      AutoCRM PRO MVP 3 - SOPORTE TÉCNICO
+==============================================================================

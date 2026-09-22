@@ -606,6 +606,23 @@ export const dataService = {
     return remote?.success ?? true;
   },
 
+  async changePassword(newPassword: string, userId?: string, currentPassword?: string): Promise<{ success: boolean; message?: string; error?: string }> {
+    const res = await apiRequest<{ success: boolean; message?: string; error?: string }>('/api/auth/cambiar-password', {
+      method: 'POST',
+      body: JSON.stringify({
+        usuario_id: userId,
+        new_password: newPassword,
+        current_password: currentPassword
+      })
+    });
+    if (res && res.success) return res;
+    if (userId) {
+      const ok = await this.resetUserPassword(userId, newPassword);
+      return { success: ok, message: ok ? 'Contraseña actualizada' : 'Error al cambiar contraseña' };
+    }
+    return { success: false, error: res?.error || 'Error al cambiar contraseña' };
+  },
+
   async importData(data: { clientes?: Cliente[]; inventario?: Inventario[] }): Promise<void> {
     if (data.clientes) {
       const current = getLocal<Cliente[]>(STORAGE_KEYS.CLIENTES, []);

@@ -16,10 +16,12 @@ import {
   LogOut,
   MoreHorizontal,
   X,
-  User
+  User,
+  KeyRound
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { UserRole, ROLE_LABELS } from '../types/auth';
+import { dataService } from '../services/dataService';
 
 export type TabType = 'pipeline' | 'clientes' | 'inventory' | 'aftersales' | 'dashboard' | 'admin' | 'encargos' | 'pagares';
 
@@ -43,6 +45,35 @@ export const Navbar: React.FC<NavbarProps> = ({
   const { currentRole, setRole, can, currentUser, logout, isAuthenticated } = useAuth();
   const [showRoleMenu, setShowRoleMenu] = useState(false);
   const [showMobileMoreSheet, setShowMobileMoreSheet] = useState(false);
+  const [showPassModal, setShowPassModal] = useState(false);
+  const [newPassInput, setNewPassInput] = useState('');
+  const [passMsg, setPassMsg] = useState('');
+  const [isChangingPass, setIsChangingPass] = useState(false);
+
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newPassInput.trim()) return;
+    setIsChangingPass(true);
+    setPassMsg('');
+    try {
+      const targetId = currentUser?.id || currentUser?.usuario || currentUser?.email || 'superadmin';
+      const res = await dataService.changePassword(newPassInput.trim(), targetId);
+      if (res.success) {
+        setPassMsg('✅ Contraseña actualizada exitosamente en SQLite.');
+        setNewPassInput('');
+        setTimeout(() => {
+          setShowPassModal(false);
+          setPassMsg('');
+        }, 2000);
+      } else {
+        setPassMsg(`❌ Error: ${res.error || 'No se pudo actualizar la clave'}`);
+      }
+    } catch (e: any) {
+      setPassMsg('❌ Error al comunicarse con el servidor local SQLite.');
+    } finally {
+      setIsChangingPass(false);
+    }
+  };
 
   // If role is changed to vendedor and current tab is restricted, redirect to pipeline
   const handleRoleChange = (role: UserRole) => {
@@ -167,15 +198,15 @@ export const Navbar: React.FC<NavbarProps> = ({
                   : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/50'
               }`}
             >
-              <Package className="w-3.5 h-3.5 shrink-0" />
-              <span>Inventario</span>
+              <Car className="w-3.5 h-3.5 shrink-0" />
+              <span>Stock</span>
             </button>
 
             <button
               onClick={() => setActiveTab('encargos')}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition shrink-0 ${
                 activeTab === 'encargos'
-                  ? 'bg-indigo-500 text-white shadow-md shadow-indigo-500/20'
+                  ? 'bg-cyan-500 text-slate-950 shadow-md shadow-cyan-500/20'
                   : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/50'
               }`}
             >
@@ -183,7 +214,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               <span>Encargos</span>
             </button>
 
-            {/* Tab Pagarés: Solo visible para admin y superadmin */}
+            {/* Tab Pagarés: Solo visible si tiene permiso de cobrar */}
             {can('gestionar_pagares') && (
               <button
                 onClick={() => setActiveTab('pagares')}
@@ -193,7 +224,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/50'
                 }`}
               >
-                <FileText className="w-3.5 h-3.5 shrink-0" />
+                <Package className="w-3.5 h-3.5 shrink-0" />
                 <span>Pagarés</span>
               </button>
             )}
@@ -244,15 +275,23 @@ export const Navbar: React.FC<NavbarProps> = ({
           {/* Right Desktop Actions */}
           <div className="hidden lg:flex items-center gap-2 justify-end shrink-0">
             {currentUser && (
-              <div className="flex items-center gap-2 px-2.5 py-1 rounded-xl bg-slate-900 border border-slate-800 text-xs">
+              <button
+                type="button"
+                onClick={() => setShowPassModal(true)}
+                className="flex items-center gap-2 px-2.5 py-1 rounded-xl bg-slate-900 border border-slate-800 text-xs hover:border-amber-500/50 hover:bg-slate-800 transition cursor-pointer"
+                title="Haz clic para cambiar tu contraseña en SQLite"
+              >
                 <div className="w-6 h-6 rounded-lg bg-cyan-950 text-cyan-400 font-bold flex items-center justify-center text-[10px] border border-cyan-500/30">
                   {currentUser.nombre ? currentUser.nombre.charAt(0).toUpperCase() : 'U'}
                 </div>
                 <div className="flex flex-col text-left">
-                  <span className="font-bold text-slate-200 text-[11px] leading-tight">{currentUser.nombre}</span>
+                  <span className="font-bold text-slate-200 text-[11px] leading-tight flex items-center gap-1">
+                    {currentUser.nombre}
+                    <KeyRound className="w-3 h-3 text-amber-400" />
+                  </span>
                   <span className="text-[9px] text-slate-400 font-mono leading-none">{currentUser.rol}</span>
                 </div>
-              </div>
+              </button>
             )}
 
             {onOpenVehicleMatchmaker && (
@@ -287,6 +326,65 @@ export const Navbar: React.FC<NavbarProps> = ({
           </div>
         </div>
       </header>
+
+      {/* Modal de Cambio de Contraseña */}
+      {showPassModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-in fade-in">
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl p-6 max-w-md w-full shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <h4 className="font-extrabold text-slate-100 flex items-center gap-2 text-sm">
+                <KeyRound className="w-5 h-5 text-amber-400" />
+                Cambiar Mi Contraseña en SQLite
+              </h4>
+              <button onClick={() => setShowPassModal(false)} className="text-slate-400 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleChangePassword} className="space-y-3 text-xs">
+              <p className="text-slate-400">
+                Usuario activo: <strong className="text-cyan-300 font-mono">{currentUser?.usuario || 'superadmin'}</strong> ({currentUser?.nombre || 'Super Administrador'})
+              </p>
+
+              <div>
+                <label className="block font-semibold text-slate-300 mb-1">Nueva Contraseña *</label>
+                <input
+                  type="password"
+                  required
+                  autoFocus
+                  value={newPassInput}
+                  onChange={(e) => setNewPassInput(e.target.value)}
+                  placeholder="Ingresa tu nueva contraseña..."
+                  className="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-white font-mono text-sm focus:outline-none focus:border-amber-500"
+                />
+              </div>
+
+              {passMsg && (
+                <p className={`text-xs font-bold p-2 rounded-lg ${passMsg.includes('✅') ? 'bg-emerald-950/60 text-emerald-300 border border-emerald-500/30' : 'bg-rose-950/60 text-rose-300 border border-rose-500/30'}`}>
+                  {passMsg}
+                </p>
+              )}
+
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setShowPassModal(false)}
+                  className="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 hover:text-white"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={isChangingPass}
+                  className="px-4 py-2 rounded-xl bg-amber-500 text-slate-950 font-extrabold hover:bg-amber-400 shadow-lg shadow-amber-500/20"
+                >
+                  {isChangingPass ? 'Guardando...' : 'Actualizar Contraseña'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Dock de Navegación Inferior Estilo App Novedosa (5 Íconos Fijos en Pantallas Móviles) */}
       <div className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-slate-950/95 backdrop-blur-xl border-t border-slate-800/80 px-2 py-1.5 flex items-center justify-around shadow-2xl">

@@ -756,8 +756,7 @@ export const AdminManager: React.FC<AdminManagerProps> = ({
                     {usuarios.map((u) => {
                       const meta = ROLE_LABELS[u.rol] || { label: u.rol, badge: u.rol, color: 'bg-slate-800 text-slate-400 border-slate-700', desc: '' };
                       const isCurrentUserSuperAdmin = currentRole === 'superadmin' || currentRole === 'dev';
-                      const isTargetProtected = u.rol === 'superadmin' || u.rol === 'dev';
-                      const canManageTarget = isCurrentUserSuperAdmin || !isTargetProtected;
+                      const canManageTarget = true;
 
                       return (
                         <tr key={u.id} className="hover:bg-slate-900/40 transition">

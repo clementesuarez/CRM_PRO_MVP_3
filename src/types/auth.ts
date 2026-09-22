@@ -3,6 +3,7 @@ export type UserRole = 'vendedor' | 'admin' | 'superadmin' | 'dev';
 export interface PerfilUsuario {
   id: string;
   nombre: string;
+  usuario?: string;
   email: string;
   rol: UserRole;
   activo: boolean;
