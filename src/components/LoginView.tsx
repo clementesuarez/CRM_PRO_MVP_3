@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ShieldCheck, Lock, User, KeyRound, ArrowRight, AlertCircle, Database } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
@@ -8,6 +8,13 @@ export const LoginView: React.FC = () => {
   const [passwordInput, setPasswordInput] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
   const [loading, setLoading] = useState(false);
+
+  // Garantizar que la pantalla siempre arranque con los campos en blanco al montar
+  useEffect(() => {
+    setUsuarioInput('');
+    setPasswordInput('');
+    setErrorMsg('');
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -75,7 +82,7 @@ export const LoginView: React.FC = () => {
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-4 text-xs">
+          <form onSubmit={handleSubmit} autoComplete="off" className="space-y-4 text-xs">
             <div>
               <label className="block font-semibold text-slate-300 mb-1.5 flex items-center justify-between">
                 <span>Usuario o Email</span>
@@ -83,8 +90,14 @@ export const LoginView: React.FC = () => {
               </label>
               <input
                 type="text"
+                name="no_autofill_usuario_mvp"
+                id="login_usuario_input"
                 required
                 autoFocus
+                autoComplete="off"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
                 value={usuarioInput}
                 onChange={(e) => setUsuarioInput(e.target.value)}
                 placeholder="ej: admin o clemente@autocrm.com"
@@ -99,7 +112,10 @@ export const LoginView: React.FC = () => {
               </label>
               <input
                 type="password"
+                name="no_autofill_password_mvp"
+                id="login_password_input"
                 required
+                autoComplete="new-password"
                 value={passwordInput}
                 onChange={(e) => setPasswordInput(e.target.value)}
                 placeholder="••••••••"
