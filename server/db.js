@@ -357,37 +357,57 @@ export function initDb() {
 
 function syncExistingTables() {
   try {
+    // Sincronización automática de columnas para la tabla 'clientes'
+    const cliCols = db.prepare('PRAGMA table_info(clientes)').all().map(c => c.name);
+    if (!cliCols.includes('numero_documento')) {
+      db.exec('ALTER TABLE clientes ADD COLUMN numero_documento TEXT');
+      if (cliCols.includes('dni')) {
+        db.exec("UPDATE clientes SET numero_documento = dni WHERE (numero_documento IS NULL OR numero_documento = '') AND dni IS NOT NULL");
+      }
+    }
+    if (!cliCols.includes('tipo_documento')) db.exec("ALTER TABLE clientes ADD COLUMN tipo_documento TEXT DEFAULT 'DNI'");
+    if (!cliCols.includes('apellido')) db.exec('ALTER TABLE clientes ADD COLUMN apellido TEXT');
+    if (!cliCols.includes('email')) db.exec('ALTER TABLE clientes ADD COLUMN email TEXT');
+    if (!cliCols.includes('domicilio_calle')) db.exec('ALTER TABLE clientes ADD COLUMN domicilio_calle TEXT');
+    if (!cliCols.includes('domicilio_numero')) db.exec('ALTER TABLE clientes ADD COLUMN domicilio_numero TEXT');
+    if (!cliCols.includes('localidad')) db.exec('ALTER TABLE clientes ADD COLUMN localidad TEXT');
+    if (!cliCols.includes('provincia')) db.exec('ALTER TABLE clientes ADD COLUMN provincia TEXT');
+    if (!cliCols.includes('codigo_postal')) db.exec('ALTER TABLE clientes ADD COLUMN codigo_postal TEXT');
+    if (!cliCols.includes('compro_credito')) db.exec('ALTER TABLE clientes ADD COLUMN compro_credito INTEGER DEFAULT 0');
+    if (!cliCols.includes('monto_credito')) db.exec('ALTER TABLE clientes ADD COLUMN monto_credito REAL DEFAULT 0');
+    if (!cliCols.includes('deja_auto_permuta')) db.exec('ALTER TABLE clientes ADD COLUMN deja_auto_permuta INTEGER DEFAULT 0');
+    if (!cliCols.includes('auto_permuta_detalle')) db.exec('ALTER TABLE clientes ADD COLUMN auto_permuta_detalle TEXT');
+    if (!cliCols.includes('tipo_cliente')) db.exec("ALTER TABLE clientes ADD COLUMN tipo_cliente TEXT DEFAULT 'Prospecto'");
+    if (!cliCols.includes('notas')) db.exec('ALTER TABLE clientes ADD COLUMN notas TEXT');
+    if (!cliCols.includes('ultimo_contacto')) db.exec('ALTER TABLE clientes ADD COLUMN ultimo_contacto TEXT');
+
     const vehCols = db.prepare('PRAGMA table_info(vehiculos)').all().map(c => c.name);
-    if (!vehCols.includes('precio_lista')) {
-      db.exec('ALTER TABLE vehiculos ADD COLUMN precio_lista REAL DEFAULT 0');
-    }
-    if (!vehCols.includes('costo_compra')) {
-      db.exec('ALTER TABLE vehiculos ADD COLUMN costo_compra REAL DEFAULT 0');
-    }
+    if (!vehCols.includes('precio_lista')) db.exec('ALTER TABLE vehiculos ADD COLUMN precio_lista REAL DEFAULT 0');
+    if (!vehCols.includes('costo_compra')) db.exec('ALTER TABLE vehiculos ADD COLUMN costo_compra REAL DEFAULT 0');
+    if (!vehCols.includes('dueno_consigna_nombre')) db.exec('ALTER TABLE vehiculos ADD COLUMN dueno_consigna_nombre TEXT');
+    if (!vehCols.includes('dueno_consigna_telefono')) db.exec('ALTER TABLE vehiculos ADD COLUMN dueno_consigna_telefono TEXT');
+    if (!vehCols.includes('dueno_consigna_documento')) db.exec('ALTER TABLE vehiculos ADD COLUMN dueno_consigna_documento TEXT');
+    if (!vehCols.includes('origen_transaccion')) db.exec('ALTER TABLE vehiculos ADD COLUMN origen_transaccion TEXT');
+    if (!vehCols.includes('es_solo_compra')) db.exec('ALTER TABLE vehiculos ADD COLUMN es_solo_compra INTEGER DEFAULT 0');
+    if (!vehCols.includes('fecha_compra')) db.exec('ALTER TABLE vehiculos ADD COLUMN fecha_compra TEXT');
 
     const invCols = db.prepare('PRAGMA table_info(inventario)').all().map(c => c.name);
-    if (!invCols.includes('precio_venta')) {
-      db.exec('ALTER TABLE inventario ADD COLUMN precio_venta REAL DEFAULT 0');
-    }
-    if (!invCols.includes('costo_toma')) {
-      db.exec('ALTER TABLE inventario ADD COLUMN costo_toma REAL DEFAULT 0');
-    }
+    if (!invCols.includes('precio_venta')) db.exec('ALTER TABLE inventario ADD COLUMN precio_venta REAL DEFAULT 0');
+    if (!invCols.includes('costo_toma')) db.exec('ALTER TABLE inventario ADD COLUMN costo_toma REAL DEFAULT 0');
+    if (!invCols.includes('dueno_consigna_nombre')) db.exec('ALTER TABLE inventario ADD COLUMN dueno_consigna_nombre TEXT');
+    if (!invCols.includes('dueno_consigna_telefono')) db.exec('ALTER TABLE inventario ADD COLUMN dueno_consigna_telefono TEXT');
+    if (!invCols.includes('dueno_consigna_documento')) db.exec('ALTER TABLE inventario ADD COLUMN dueno_consigna_documento TEXT');
+    if (!invCols.includes('origen_transaccion')) db.exec('ALTER TABLE inventario ADD COLUMN origen_transaccion TEXT');
+    if (!invCols.includes('es_solo_compra')) db.exec('ALTER TABLE inventario ADD COLUMN es_solo_compra INTEGER DEFAULT 0');
+    if (!invCols.includes('fecha_compra')) db.exec('ALTER TABLE inventario ADD COLUMN fecha_compra TEXT');
 
     const cotCols = db.prepare('PRAGMA table_info(cotizaciones)').all().map(c => c.name);
-    if (!cotCols.includes('precio_ofrecido')) {
-      db.exec('ALTER TABLE cotizaciones ADD COLUMN precio_ofrecido REAL DEFAULT 0');
-    }
-    if (!cotCols.includes('saldo_financiado')) {
-      db.exec('ALTER TABLE cotizaciones ADD COLUMN saldo_financiado REAL DEFAULT 0');
-    }
-    if (!cotCols.includes('vehiculos_cotizados')) {
-      db.exec('ALTER TABLE cotizaciones ADD COLUMN vehiculos_cotizados TEXT');
-    }
+    if (!cotCols.includes('precio_ofrecido')) db.exec('ALTER TABLE cotizaciones ADD COLUMN precio_ofrecido REAL DEFAULT 0');
+    if (!cotCols.includes('saldo_financiado')) db.exec('ALTER TABLE cotizaciones ADD COLUMN saldo_financiado REAL DEFAULT 0');
+    if (!cotCols.includes('vehiculos_cotizados')) db.exec('ALTER TABLE cotizaciones ADD COLUMN vehiculos_cotizados TEXT');
 
     const permCols = db.prepare('PRAGMA table_info(permutas)').all().map(c => c.name);
-    if (!permCols.includes('cotizacion_id')) {
-      db.exec('ALTER TABLE permutas ADD COLUMN cotizacion_id TEXT');
-    }
+    if (!permCols.includes('cotizacion_id')) db.exec('ALTER TABLE permutas ADD COLUMN cotizacion_id TEXT');
 
     db.exec(`
       INSERT OR IGNORE INTO inventario (
