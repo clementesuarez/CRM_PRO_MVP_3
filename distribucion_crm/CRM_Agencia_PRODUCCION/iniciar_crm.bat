@@ -1,52 +1,53 @@
 @echo off
-setlocal EnableDelayedExpansion
 title CRM Agencia - Servidor Local
-chcp 65001 >nul
-cls
+
+cd /d "%~dp0"
 
 echo ======================================================
 echo           INICIANDO CRM AGENCIA VERSION 1.0
 echo ======================================================
 echo.
 
-:: 1. Verificacion limpia de Node.js
+REM 1. Verificacion limpia de Node.js
 where node >nul 2>nul
-if !ERRORLEVEL! NEQ 0 (
-    echo [ERROR CRITICO] Node.js no se detecto en el sistema.
-    echo Por favor instale Node.js LTS desde https://nodejs.org/
-    echo.
-    pause
-    exit /b 1
-)
+if %ERRORLEVEL% NEQ 0 goto :NO_NODE
 
-:: 2. Verificacion de node_modules precompilados (Zero-Compile / Zero-Setup)
-if exist "node_modules\" (
-    echo [1/2] Modulos de ejecucion detectados (Ejecucion directa sin compilacion).
-) else (
-    echo [1/2] Instalando modulos de produccion (Fallback)...
-    call npm install --omit=dev --no-audit --no-fund
-    if !ERRORLEVEL! NEQ 0 (
-        echo [ERROR] Fallo npm install. Verifique la conexion a Internet.
-        pause
-        exit /b 1
-    )
-)
+REM 2. Verificacion de node_modules precompilados
+if exist node_modules goto :START_APP
 
-:: 3. Lanzar navegador al iniciar
+echo [1/2] Instalando modulos de produccion (Fallback)...
+call npm install --omit=dev --no-audit --no-fund
+if %ERRORLEVEL% NEQ 0 goto :NPM_ERROR
+
+:START_APP
 echo [2/2] Levantando aplicacion...
+echo.
 start "" http://localhost:5173
 
-echo.
 echo ======================================================
 echo   CRM Agencia en ejecucion. Mantenga esta ventana abierta.
 echo ======================================================
 echo.
 
-if exist "server\server.js" (
+if exist server\server.js (
     node server/server.js
-) else if exist "server\index.js" (
-    node server/index.js
 ) else (
-    echo [ERROR] No se encontro el archivo de entrada del servidor.
+    node server/index.js
 )
+goto :END
+
+:NO_NODE
+echo [ERROR CRITICO] Node.js no esta instalado en este sistema.
+echo Por favor descargue e instale Node.js LTS desde https://nodejs.org/
+echo.
+pause
+exit /b 1
+
+:NPM_ERROR
+echo [ERROR] Fallo npm install. Verifique la conexion a Internet.
+echo.
+pause
+exit /b 1
+
+:END
 pause
