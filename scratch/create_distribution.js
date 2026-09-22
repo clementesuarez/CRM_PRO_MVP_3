@@ -78,44 +78,67 @@ prodDb.exec(`
 prodDb.close();
 console.log('[SQLite] Base de datos PRODUCCIÓN limpiada a 0 registros operativos.');
 
-// 4. Script instalar_y_ejecutar.bat
-const batContent = `@echo off
-chcp 65001 > nul
-title CRM Agencia Automotor - Servidor Comercial
-echo ==============================================================================
-echo                AUTOCRM PRO MVP 3 - SERVIDOR LOCAL COMERCIAL
-echo ==============================================================================
-echo.
-echo Verificando instalación de Node.js en el sistema...
-where node >nul 2>nul
-if %errorlevel% neq 0 (
-    echo [ERROR CRÍTICO] Node.js no se encuentra instalado en esta computadora.
-    echo Por favor descargue e instale Node.js LTS desde https://nodejs.org/ antes de continuar.
-    echo.
-    pause
-    exit /b 1
-)
-echo [OK] Node.js detectado correctamente.
-echo.
-if not exist node_modules (
-    echo [NPM] Instalando dependencias de producción...
-    call npm install --omit=dev
-    echo.
-)
+// 4. Script instalar_y_ejecutar.bat e iniciar_crm.bat (Sintaxis nativa limpia CMD con CRLF y sin BOM)
+const batContentLines = [
+  '@echo off',
+  'setlocal EnableDelayedExpansion',
+  'title CRM Agencia - Servidor Local',
+  'chcp 65001 >nul',
+  'cls',
+  '',
+  'echo ======================================================',
+  'echo           INICIANDO CRM AGENCIA VERSION 1.0',
+  'echo ======================================================',
+  'echo.',
+  '',
+  ':: 1. Verificacion limpia de Node.js',
+  'where node >nul 2>nul',
+  'if !ERRORLEVEL! NEQ 0 (',
+  '    echo [ERROR CRITICO] Node.js no se detecto en el sistema.',
+  '    echo Por favor instale Node.js LTS desde https://nodejs.org/',
+  '    echo.',
+  '    pause',
+  '    exit /b 1',
+  ')',
+  '',
+  ':: 2. Instalacion de dependencias si falta node_modules',
+  'if not exist "node_modules\\" (',
+  '    echo [1/2] Primera ejecucion detectada. Instalando modulos necesarios...',
+  '    call npm install --omit=dev',
+  '    if !ERRORLEVEL! NEQ 0 (',
+  '        echo [ERROR] Fallo npm install. Verifique la conexion a Internet.',
+  '        pause',
+  '        exit /b 1',
+  '    )',
+  ')',
+  '',
+  ':: 3. Lanzar navegador al iniciar',
+  'echo [2/2] Levantando aplicacion...',
+  'start "" http://localhost:5173',
+  '',
+  'echo.',
+  'echo ======================================================',
+  'echo   CRM Agencia en ejecucion. Mantenga esta ventana abierta.',
+  'echo ======================================================',
+  'echo.',
+  '',
+  'if exist "server\\server.js" (',
+  '    node server/server.js',
+  ') else if exist "server\\index.js" (',
+  '    node server/index.js',
+  ') else (',
+  '    echo [ERROR] No se encontro el archivo de entrada del servidor.',
+  ')',
+  'pause',
+  ''
+];
+const batContent = batContentLines.join('\r\n');
 
-echo Iniciando Servidor Local CRM en http://localhost:5173 ...
-echo Abriendo navegador en http://localhost:5173 ...
-echo.
-start http://localhost:5173
-node server/server.js
-pause
-`;
+fs.writeFileSync(path.join(demoDir, 'instalar_y_ejecutar.bat'), batContent, { encoding: 'utf-8' });
+fs.writeFileSync(path.join(demoDir, 'iniciar_crm.bat'), batContent, { encoding: 'utf-8' });
 
-fs.writeFileSync(path.join(demoDir, 'instalar_y_ejecutar.bat'), batContent, 'utf-8');
-fs.writeFileSync(path.join(demoDir, 'iniciar_crm.bat'), batContent, 'utf-8');
-
-fs.writeFileSync(path.join(prodDir, 'instalar_y_ejecutar.bat'), batContent, 'utf-8');
-fs.writeFileSync(path.join(prodDir, 'iniciar_crm.bat'), batContent, 'utf-8');
+fs.writeFileSync(path.join(prodDir, 'instalar_y_ejecutar.bat'), batContent, { encoding: 'utf-8' });
+fs.writeFileSync(path.join(prodDir, 'iniciar_crm.bat'), batContent, { encoding: 'utf-8' });
 
 // 5. Plantillas de Migración CSV para PRODUCCIÓN (BOM UTF-8 + ;)
 const BOM = '\uFEFF';

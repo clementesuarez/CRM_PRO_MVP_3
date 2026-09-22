@@ -1,30 +1,50 @@
 @echo off
-chcp 65001 > nul
-title CRM Agencia Automotor - Servidor Comercial
-echo ==============================================================================
-echo                AUTOCRM PRO MVP 3 - SERVIDOR LOCAL COMERCIAL
-echo ==============================================================================
+setlocal EnableDelayedExpansion
+title CRM Agencia - Servidor Local
+chcp 65001 >nul
+cls
+
+echo ======================================================
+echo           INICIANDO CRM AGENCIA VERSION 1.0
+echo ======================================================
 echo.
-echo Verificando instalación de Node.js en el sistema...
+
+:: 1. Verificacion limpia de Node.js
 where node >nul 2>nul
-if %errorlevel% neq 0 (
-    echo [ERROR CRÍTICO] Node.js no se encuentra instalado en esta computadora.
-    echo Por favor descargue e instale Node.js LTS desde https://nodejs.org/ antes de continuar.
+if !ERRORLEVEL! NEQ 0 (
+    echo [ERROR CRITICO] Node.js no se detecto en el sistema.
+    echo Por favor instale Node.js LTS desde https://nodejs.org/
     echo.
     pause
     exit /b 1
 )
-echo [OK] Node.js detectado correctamente.
-echo.
-if not exist node_modules (
-    echo [NPM] Instalando dependencias de producción...
+
+:: 2. Instalacion de dependencias si falta node_modules
+if not exist "node_modules\" (
+    echo [1/2] Primera ejecucion detectada. Instalando modulos necesarios...
     call npm install --omit=dev
-    echo.
+    if !ERRORLEVEL! NEQ 0 (
+        echo [ERROR] Fallo npm install. Verifique la conexion a Internet.
+        pause
+        exit /b 1
+    )
 )
 
-echo Iniciando Servidor Local CRM en http://localhost:5173 ...
-echo Abriendo navegador en http://localhost:5173 ...
+:: 3. Lanzar navegador al iniciar
+echo [2/2] Levantando aplicacion...
+start "" http://localhost:5173
+
 echo.
-start http://localhost:5173
-node server/server.js
+echo ======================================================
+echo   CRM Agencia en ejecucion. Mantenga esta ventana abierta.
+echo ======================================================
+echo.
+
+if exist "server\server.js" (
+    node server/server.js
+) else if exist "server\index.js" (
+    node server/index.js
+) else (
+    echo [ERROR] No se encontro el archivo de entrada del servidor.
+)
 pause
