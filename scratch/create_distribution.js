@@ -84,7 +84,16 @@ prodDb.exec(`
 prodDb.close();
 console.log('[SQLite] Base de datos PRODUCCIÓN limpiada a 0 registros operativos.');
 
-// 4. Script instalar_y_ejecutar.bat e iniciar_crm.bat (Sintaxis nativa blindada con goto, cd /d %~dp0 y CRLF)
+// 4. Script de Inicio Silencioso (.vbs), Standard (.bat) y Modo Soporte (.bat)
+const vbsContentLines = [
+  'Set WshShell = CreateObject("WScript.Shell")',
+  'WshShell.CurrentDirectory = CreateObject("Scripting.FileSystemObject").GetParentFolderName(WScript.ScriptFullName)',
+  'WshShell.Run "cmd /c iniciar_crm.bat", 0, False',
+  'Set WshShell = Nothing',
+  ''
+];
+const vbsContent = vbsContentLines.join('\r\n');
+
 const batContentLines = [
   '@echo off',
   'title CRM Agencia - Servidor Local',
@@ -110,7 +119,10 @@ const batContentLines = [
   ':START_APP',
   'echo [2/2] Levantando aplicacion...',
   'echo.',
-  'start "" http://localhost:5173',
+  'start msedge --app=http://localhost:5173 >nul 2>nul',
+  'if %ERRORLEVEL% NEQ 0 (',
+  '    start "" http://localhost:5173',
+  ')',
   '',
   'echo ======================================================',
   'echo   CRM Agencia en ejecucion. Mantenga esta ventana abierta.',
@@ -143,11 +155,79 @@ const batContentLines = [
 ];
 const batContent = batContentLines.join('\r\n');
 
+const batSoporteLines = [
+  '@echo off',
+  'title CRM Agencia - Servidor Local (Modo Soporte / Diagnostico)',
+  '',
+  'cd /d "%~dp0"',
+  '',
+  'echo ======================================================',
+  'echo   CRM AGENCIA VERSION 1.0 - MODO SOPORTE / DIAGNOSTICO',
+  'echo ======================================================',
+  'echo.',
+  '',
+  'REM 1. Verificacion limpia de Node.js',
+  'where node >nul 2>nul',
+  'if %ERRORLEVEL% NEQ 0 goto :NO_NODE',
+  '',
+  'REM 2. Verificacion de node_modules precompilados',
+  'if exist node_modules goto :START_APP',
+  '',
+  'echo [1/2] Instalando modulos de produccion (Fallback)...',
+  'call npm install --omit=dev --no-audit --no-fund',
+  'if %ERRORLEVEL% NEQ 0 goto :NPM_ERROR',
+  '',
+  ':START_APP',
+  'echo [2/2] Levantando aplicacion...',
+  'echo.',
+  'start msedge --app=http://localhost:5173 >nul 2>nul',
+  'if %ERRORLEVEL% NEQ 0 (',
+  '    start "" http://localhost:5173',
+  ')',
+  '',
+  'echo ======================================================',
+  'echo   Servidor activo con consola visible de diagnostico.',
+  'echo   Para cerrar la aplicacion, cierre esta ventana.',
+  'echo ======================================================',
+  'echo.',
+  '',
+  'if exist server\\server.js (',
+  '    node server/server.js',
+  ') else (',
+  '    node server/index.js',
+  ')',
+  'goto :END',
+  '',
+  ':NO_NODE',
+  'echo [ERROR CRITICO] Node.js no esta instalado en este sistema.',
+  'echo Por favor descargue e instale Node.js LTS desde https://nodejs.org/',
+  'echo.',
+  'pause',
+  'exit /b 1',
+  '',
+  ':NPM_ERROR',
+  'echo [ERROR] Fallo npm install. Verifique la conexion a Internet.',
+  'echo.',
+  'pause',
+  'exit /b 1',
+  '',
+  ':END',
+  'pause',
+  ''
+];
+const batSoporteContent = batSoporteLines.join('\r\n');
+
+// Escribir archivos para DEMO
+fs.writeFileSync(path.join(demoDir, 'iniciar_silencioso.vbs'), vbsContent, { encoding: 'utf-8' });
 fs.writeFileSync(path.join(demoDir, 'instalar_y_ejecutar.bat'), batContent, { encoding: 'utf-8' });
 fs.writeFileSync(path.join(demoDir, 'iniciar_crm.bat'), batContent, { encoding: 'utf-8' });
+fs.writeFileSync(path.join(demoDir, 'iniciar_crm_modo_soporte.bat'), batSoporteContent, { encoding: 'utf-8' });
 
+// Escribir archivos para PRODUCCION
+fs.writeFileSync(path.join(prodDir, 'iniciar_silencioso.vbs'), vbsContent, { encoding: 'utf-8' });
 fs.writeFileSync(path.join(prodDir, 'instalar_y_ejecutar.bat'), batContent, { encoding: 'utf-8' });
 fs.writeFileSync(path.join(prodDir, 'iniciar_crm.bat'), batContent, { encoding: 'utf-8' });
+fs.writeFileSync(path.join(prodDir, 'iniciar_crm_modo_soporte.bat'), batSoporteContent, { encoding: 'utf-8' });
 
 // 5. Plantillas de Migración CSV para PRODUCCIÓN (BOM UTF-8 + ;)
 const BOM = '\uFEFF';

@@ -22,7 +22,10 @@ if %ERRORLEVEL% NEQ 0 goto :NPM_ERROR
 :START_APP
 echo [2/2] Levantando aplicacion...
 echo.
-start "" http://localhost:5173
+start msedge --app=http://localhost:5173 >nul 2>nul
+if %ERRORLEVEL% NEQ 0 (
+    start "" http://localhost:5173
+)
 
 echo ======================================================
 echo   CRM Agencia en ejecucion. Mantenga esta ventana abierta.

@@ -1,10 +1,10 @@
 @echo off
-title CRM Agencia - Servidor Local
+title CRM Agencia - Servidor Local (Modo Soporte / Diagnostico)
 
 cd /d "%~dp0"
 
 echo ======================================================
-echo           INICIANDO CRM AGENCIA VERSION 1.0
+echo   CRM AGENCIA VERSION 1.0 - MODO SOPORTE / DIAGNOSTICO
 echo ======================================================
 echo.
 
@@ -22,14 +22,14 @@ if %ERRORLEVEL% NEQ 0 goto :NPM_ERROR
 :START_APP
 echo [2/2] Levantando aplicacion...
 echo.
-
 start msedge --app=http://localhost:5173 >nul 2>nul
 if %ERRORLEVEL% NEQ 0 (
     start "" http://localhost:5173
 )
 
 echo ======================================================
-echo   CRM Agencia en ejecucion. Mantenga esta ventana abierta.
+echo   Servidor activo con consola visible de diagnostico.
+echo   Para cerrar la aplicacion, cierre esta ventana.
 echo ======================================================
 echo.
 
