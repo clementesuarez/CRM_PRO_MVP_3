@@ -48,7 +48,7 @@ interface AdminManagerProps {
   clientes: Cliente[];
   inventario: Inventario[];
   presupuestos: Presupuesto[];
-  onImportData: (data: { clientes?: Cliente[]; inventario?: Inventario[] }) => Promise<void>;
+  onImportData: (data: { clientes?: Cliente[]; inventario?: Inventario[]; pagares?: any[] }) => Promise<void>;
 }
 
 export const AdminManager: React.FC<AdminManagerProps> = ({
@@ -273,7 +273,29 @@ export const AdminManager: React.FC<AdminManagerProps> = ({
   };
 
   // Full Database JSON Download
-  const handleExportFullJSON = () => {
+  const handleExportFullJSON = async () => {
+    let cuotas: any[] = [];
+    try {
+      cuotas = (await dataService.getCuotasPagares()) || [];
+    } catch (e) {}
+
+    const pagaresFormatted = cuotas.map((p: any) => {
+      const cli = p.cliente || clientes.find(c => c.id === (p.cliente_id || p.cliente?.id));
+      return {
+        id: p.id,
+        cotizacion_id: p.cotizacion_id || p.prestamo_id || '',
+        cliente_id: p.cliente_id || cli?.id || '',
+        cliente_nombre_completo: cli ? `${cli.nombre} ${cli.apellido || ''}`.trim() : 'Sin cliente',
+        dni: cli?.numero_documento || (cli as any)?.dni || '',
+        nro_cuota: p.numero_cuota ?? p.nro_cuota ?? 1,
+        monto: p.monto_cuota ?? p.monto ?? 0,
+        moneda: p.moneda || 'USD',
+        vencimiento: p.fecha_vencimiento || '',
+        fecha_pago: p.estado === 'Cobrado' ? (p.fecha_pago || '') : '',
+        estado: p.estado
+      };
+    });
+
     const fullSnapshot = {
       app: 'AutoCRM PRO',
       version: '1.0.0',
@@ -281,12 +303,14 @@ export const AdminManager: React.FC<AdminManagerProps> = ({
       counts: {
         clientes: clientes.length,
         inventario: inventario.length,
-        presupuestos: presupuestos.length
+        presupuestos: presupuestos.length,
+        pagares: pagaresFormatted.length
       },
       data: {
         clientes,
         inventario,
-        presupuestos
+        presupuestos,
+        pagares: pagaresFormatted
       }
     };
 
@@ -310,7 +334,7 @@ export const AdminManager: React.FC<AdminManagerProps> = ({
         const text = event.target?.result as string;
         const parsed = JSON.parse(text);
 
-        if (parsed.data || parsed.clientes || parsed.inventario) {
+        if (parsed.data || parsed.clientes || parsed.inventario || parsed.pagares) {
           setJsonRestoreModalData({ open: true, data: parsed, fileName: file.name });
         } else {
           setImportedStatus('El archivo JSON no contiene la estructura requerida de resguardo.');
@@ -327,16 +351,14 @@ export const AdminManager: React.FC<AdminManagerProps> = ({
   const confirmJsonRestore = async () => {
     if (!jsonRestoreModalData) return;
     try {
+      const rawData = jsonRestoreModalData.data?.data || jsonRestoreModalData.data;
       const res = await dataService.importJSONToSQLite(jsonRestoreModalData.data);
-      if (res.success) {
-        await onImportData({
-          clientes: jsonRestoreModalData.data.data?.clientes || jsonRestoreModalData.data.clientes || [],
-          inventario: jsonRestoreModalData.data.data?.inventario || jsonRestoreModalData.data.inventario || []
-        });
-        setImportedStatus(`✅ ${res.mensaje || 'Resguardo JSON restaurado exitosamente en SQLite.'}`);
-      } else {
-        setImportedStatus(`❌ Error en restauración: ${res.error}`);
-      }
+      await onImportData({
+        clientes: rawData?.clientes || [],
+        inventario: rawData?.inventario || [],
+        pagares: rawData?.pagares || []
+      });
+      setImportedStatus(`✅ ${res?.mensaje || 'Resguardo JSON restaurado exitosamente en SQLite.'}`);
     } catch (err: any) {
       setImportedStatus('❌ Error al procesar la restauración en SQLite.');
     } finally {
@@ -384,33 +406,65 @@ export const AdminManager: React.FC<AdminManagerProps> = ({
   };
 
   const handleExportAllExcel = async () => {
-    downloadCSV('Backup_Clientes_Agencia', clientes);
-    downloadCSV('Backup_Inventario_Agencia', inventario);
-    downloadCSV('Backup_Presupuestos_Agencia', presupuestos.map(p => ({
-      id: p.id,
-      cliente: p.cliente?.nombre,
-      vehiculo: p.vehiculo ? `${p.vehiculo.marca} ${p.vehiculo.modelo}` : '',
-      moneda: p.moneda,
-      precio_ofrecido: p.precio_ofrecido,
-      anticipo: p.anticipo,
-      saldo_financiado: p.saldo_financiado,
-      estado: p.estado,
-      created_at: p.created_at
+    downloadCSV('Backup_Clientes_Agencia', clientes.map(c => ({
+      id: c.id,
+      nombre: c.nombre,
+      apellido: c.apellido || '',
+      tipo_documento: c.tipo_documento || 'DNI',
+      numero_documento: c.numero_documento || (c as any).dni || '',
+      telefono: c.telefono,
+      email: c.email || '',
+      localidad: c.localidad || '',
+      provincia: c.provincia || '',
+      domicilio_calle: c.domicilio_calle || '',
+      domicilio_numero: c.domicilio_numero || '',
+      codigo_postal: c.codigo_postal || '',
+      compro_credito: c.compro_credito ? 'Sí' : 'No',
+      monto_credito: c.monto_credito || 0,
+      deja_auto_permuta: c.deja_auto_permuta ? 'Sí' : 'No',
+      auto_permuta_detalle: c.auto_permuta_detalle || '',
+      tipo_cliente: c.tipo_cliente,
+      notas: c.notas || '',
+      created_at: c.created_at
     })));
+
+    downloadCSV('Backup_Inventario_Agencia', inventario);
+
+    downloadCSV('Backup_Presupuestos_Agencia', presupuestos.map(p => {
+      const c = p.cliente;
+      return {
+        id: p.id,
+        cliente: c ? `${c.nombre} ${c.apellido || ''}`.trim() : 'Sin cliente',
+        vehiculo: p.vehiculo ? `${p.vehiculo.marca} ${p.vehiculo.modelo}` : '',
+        moneda: p.moneda,
+        precio_ofrecido: p.precio_ofrecido,
+        anticipo: p.anticipo,
+        saldo_financiado: p.saldo_financiado,
+        estado: p.estado,
+        motivo_perdida: p.motivo_perdida || '',
+        created_at: p.created_at
+      };
+    }));
 
     try {
       const cuotas = await dataService.getCuotasPagares();
       if (cuotas && cuotas.length > 0) {
-        downloadCSV('Backup_Pagares_Agencia', cuotas.map((p: any) => ({
-          ID: p.id,
-          Cotizacion_ID: p.cotizacion_id || p.prestamo_id,
-          Cliente: p.cliente?.nombre || p.cliente_id || 'S/D',
-          Nro_Cuota: p.numero_cuota ?? p.nro_cuota ?? 1,
-          Monto: p.monto_cuota ?? p.monto ?? 0,
-          Vencimiento: p.fecha_vencimiento,
-          Fecha_Pago: p.fecha_pago || 'Pendiente',
-          Estado: p.estado
-        })));
+        downloadCSV('Backup_Pagares_Agencia', cuotas.map((p: any) => {
+          const c = p.cliente || clientes.find(cl => cl.id === (p.cliente_id || p.cliente?.id));
+          return {
+            ID: p.id,
+            Cotizacion_ID: p.cotizacion_id || p.prestamo_id || '',
+            Cliente_ID: p.cliente_id || c?.id || '',
+            DNI: c?.numero_documento || (c as any)?.dni || '',
+            Cliente_Nombre_Completo: c ? `${c.nombre} ${c.apellido || ''}`.trim() : 'Sin cliente',
+            Nro_Cuota: p.numero_cuota ?? p.nro_cuota ?? 1,
+            Monto: p.monto_cuota ?? p.monto ?? 0,
+            Moneda: p.moneda || 'USD',
+            Vencimiento: p.fecha_vencimiento || '',
+            Fecha_Pago: p.estado === 'Cobrado' ? (p.fecha_pago || '') : '',
+            Estado: p.estado
+          };
+        }));
       }
     } catch (err) {
       console.error('Error al exportar pagarés:', err);
@@ -543,7 +597,7 @@ export const AdminManager: React.FC<AdminManagerProps> = ({
         </div>
       ) : (
         /* UNLOCKED ADMIN PANEL CONTENT */
-        <div className="space-y-6 animate-fade-in">
+        <div className="space-y-6 animate-fade-in pb-24 lg:pb-6">
 
           {/* Sub Navigation Tabs */}
           <div className="flex items-center gap-2 border-b border-slate-800 pb-3 overflow-x-auto">

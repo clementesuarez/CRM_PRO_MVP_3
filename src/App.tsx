@@ -191,7 +191,7 @@ export const App: React.FC = () => {
     await loadAllData();
   };
 
-  const handleImportData = async (data: { clientes?: Cliente[]; inventario?: Inventario[] }) => {
+  const handleImportData = async (data: { clientes?: Cliente[]; inventario?: Inventario[]; pagares?: any[] }) => {
     await dataService.importData(data);
     await loadAllData();
   };

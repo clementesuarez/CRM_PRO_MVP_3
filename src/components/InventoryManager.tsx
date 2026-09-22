@@ -305,7 +305,7 @@ export const InventoryManager: React.FC<InventoryManagerProps> = ({
   };
 
   return (
-    <div className="space-y-6 animate-fade-in pb-12">
+    <div className="space-y-6 animate-fade-in pb-24 lg:pb-6">
       {/* HEADER BAR RESPONSIVE */}
       <div className="glass-panel p-4 sm:p-6 rounded-2xl border border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>

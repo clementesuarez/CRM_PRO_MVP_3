@@ -354,7 +354,7 @@ export const ClientesManager: React.FC<ClientesManagerProps> = ({
   };
 
   return (
-    <div className="space-y-6 animate-fade-in">
+    <div className="space-y-6 animate-fade-in pb-24 lg:pb-6">
       {/* Header Panel */}
       <div className="glass-panel p-6 rounded-2xl border border-slate-800 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div>

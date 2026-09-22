@@ -108,7 +108,7 @@ export const PipelineView: React.FC<PipelineViewProps> = ({
     : COLUMNAS.filter(col => col.id.toLowerCase() === selectedEstadoFilter.toLowerCase());
 
   return (
-    <div className="space-y-4 sm:space-y-6">
+    <div className="space-y-4 sm:space-y-6 pb-24 lg:pb-6">
       {/* Top Filter & Toolbar Bar */}
       <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 glass-panel p-3 sm:p-4 rounded-2xl border border-slate-800 shadow-lg">
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 flex-1">

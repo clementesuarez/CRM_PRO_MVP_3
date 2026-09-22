@@ -12,6 +12,7 @@ import {
   Database
 } from 'lucide-react';
 import { Cliente, Inventario, Presupuesto, Permuta } from '../types/crm';
+import { dataService } from '../services/dataService';
 
 interface BackupManagerProps {
   isOpen: boolean;
@@ -19,7 +20,7 @@ interface BackupManagerProps {
   clientes: Cliente[];
   inventario: Inventario[];
   presupuestos: Presupuesto[];
-  onImportData: (data: { clientes?: Cliente[]; inventario?: Inventario[] }) => Promise<void>;
+  onImportData: (data: { clientes?: Cliente[]; inventario?: Inventario[]; pagares?: any[] }) => Promise<void>;
 }
 
 export const BackupManager: React.FC<BackupManagerProps> = ({
@@ -71,21 +72,70 @@ export const BackupManager: React.FC<BackupManagerProps> = ({
     document.body.removeChild(link);
   };
 
-  const handleExportAll = () => {
-    downloadCSV('Backup_Clientes_Agencia', clientes);
-    downloadCSV('Backup_Inventario_Agencia', inventario);
-    downloadCSV('Backup_Presupuestos_Agencia', presupuestos.map(p => ({
-      id: p.id,
-      cliente: p.cliente?.nombre,
-      vehiculo: p.vehiculo ? `${p.vehiculo.marca} ${p.vehiculo.modelo}` : '',
-      moneda: p.moneda,
-      precio_ofrecido: p.precio_ofrecido,
-      anticipo: p.anticipo,
-      saldo_financiado: p.saldo_financiado,
-      estado: p.estado,
-      motivo_perdida: p.motivo_perdida || '',
-      created_at: p.created_at
+  const handleExportAll = async () => {
+    downloadCSV('Backup_Clientes_Agencia', clientes.map(c => ({
+      id: c.id,
+      nombre: c.nombre,
+      apellido: c.apellido || '',
+      tipo_documento: c.tipo_documento || 'DNI',
+      numero_documento: c.numero_documento || (c as any).dni || '',
+      telefono: c.telefono,
+      email: c.email || '',
+      localidad: c.localidad || '',
+      provincia: c.provincia || '',
+      domicilio_calle: c.domicilio_calle || '',
+      domicilio_numero: c.domicilio_numero || '',
+      codigo_postal: c.codigo_postal || '',
+      compro_credito: c.compro_credito ? 'Sí' : 'No',
+      monto_credito: c.monto_credito || 0,
+      deja_auto_permuta: c.deja_auto_permuta ? 'Sí' : 'No',
+      auto_permuta_detalle: c.auto_permuta_detalle || '',
+      tipo_cliente: c.tipo_cliente,
+      notas: c.notas || '',
+      created_at: c.created_at
     })));
+
+    downloadCSV('Backup_Inventario_Agencia', inventario);
+
+    downloadCSV('Backup_Presupuestos_Agencia', presupuestos.map(p => {
+      const c = p.cliente;
+      return {
+        id: p.id,
+        cliente: c ? `${c.nombre} ${c.apellido || ''}`.trim() : 'Sin cliente',
+        vehiculo: p.vehiculo ? `${p.vehiculo.marca} ${p.vehiculo.modelo}` : '',
+        moneda: p.moneda,
+        precio_ofrecido: p.precio_ofrecido,
+        anticipo: p.anticipo,
+        saldo_financiado: p.saldo_financiado,
+        estado: p.estado,
+        motivo_perdida: p.motivo_perdida || '',
+        created_at: p.created_at
+      };
+    }));
+
+    try {
+      const cuotas = await dataService.getCuotasPagares();
+      if (cuotas && cuotas.length > 0) {
+        downloadCSV('Backup_Pagares_Agencia', cuotas.map((p: any) => {
+          const c = p.cliente || clientes.find(cl => cl.id === (p.cliente_id || p.cliente?.id));
+          return {
+            ID: p.id,
+            Cotizacion_ID: p.cotizacion_id || p.prestamo_id || '',
+            Cliente_ID: p.cliente_id || c?.id || '',
+            DNI: c?.numero_documento || (c as any)?.dni || '',
+            Cliente_Nombre_Completo: c ? `${c.nombre} ${c.apellido || ''}`.trim() : 'Sin cliente',
+            Nro_Cuota: p.numero_cuota ?? p.nro_cuota ?? 1,
+            Monto: p.monto_cuota ?? p.monto ?? 0,
+            Moneda: p.moneda || 'USD',
+            Vencimiento: p.fecha_vencimiento || '',
+            Fecha_Pago: p.estado === 'Cobrado' ? (p.fecha_pago || '') : '',
+            Estado: p.estado
+          };
+        }));
+      }
+    } catch (err) {
+      console.error('Error exportando pagarés:', err);
+    }
   };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {

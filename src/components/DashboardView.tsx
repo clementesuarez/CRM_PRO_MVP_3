@@ -126,7 +126,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ metrics }) => {
   ];
 
   return (
-    <div className="space-y-6 animate-fade-in pb-12">
+    <div className="space-y-6 animate-fade-in pb-24 lg:pb-6">
       {/* HEADER BANNER DIRECTIVO */}
       <div className="flex flex-col md:flex-row items-start md:items-center justify-between glass-panel p-6 rounded-2xl border border-slate-800 gap-4 bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 shadow-xl">
         <div>
